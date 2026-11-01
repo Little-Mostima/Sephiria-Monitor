@@ -56,33 +56,79 @@ install.ps1               # 一键安装/升级
 
 ## 3. 安装
 
+### 3.1 前置条件
+
+| 需要 | 说明 |
+| --- | --- |
+| Sephiria 1.1.1（Steam 版） | 游戏根目录下应有 `Sephiria_Data\Managed\Assembly-CSharp.dll` |
+| BepInEx 5.4.x **x64** | 必须已经装好；判断标准：`<游戏>\BepInEx\core\BepInEx.dll` 存在 |
+| .NET SDK 8（仅在需要编译时） | 只有 runtime 的机器编译不了，`dotnet --list-sdks` 必须能列出 8.x |
+
+游戏路径默认按 `D:\steam\steamapps\common\Sephiria` → `C:\Program Files (x86)\Steam\...` → `D:\Steam\...` 顺序猜，猜不到就用 `-GameDir` 指定。
+
+### 3.2 安装（推荐：一条命令）
+
 ```powershell
 git clone https://github.com/Little-Mostima/Sephiria-Monitor.git
 cd Sephiria-Monitor
-
-# 从源码编译并安装（需要 .NET SDK 8）
 .\install.ps1 -Build -StopGame
-
-# 或者用仓库里已编译的 dll
-.\install.ps1 -StopGame
 ```
+
+`install.ps1` 会依次做四件事：
+
+1. 找到游戏目录（找不到就报错，不会乱装）；
+2. 用带 SDK 的 dotnet 编译 `SephiriaMonitor\`（Release）；
+3. 停掉运行中的 `Sephiria` 进程（dll 被占用时才需要）；
+4. 把 `SephiriaMonitor.dll` + `hooks.json` 复制到 `<游戏>\BepInEx\plugins\SephiriaMonitor\`，并打印文件大小与 sha256 前 16 位。
 
 | 参数 | 作用 |
 | --- | --- |
-| `-Build` | 先 `dotnet build SephiriaMonitor -c Release` |
-| `-StopGame` | 替换 dll 前先停掉运行中的游戏（dll 被占用会失败） |
-| `-GameDir <path>` | 游戏根目录；缺省依次尝试注册表外的常见 Steam 路径 |
-| `-Dotnet <path>` | 指定带 SDK 的 dotnet（运行时-only 的装不了） |
+| `-Build` | 先从源码编译；不加则用仓库里的 `dist\` 或 `bin\Release\` 预制 dll |
+| `-StopGame` | 替换前先停游戏（不加时如果 dll 被占用会失败） |
+| `-GameDir <path>` | 指定游戏根目录 |
+| `-Dotnet <path>` | 指定带 SDK 的 dotnet.exe |
 
-装完启动游戏、**读到 MainWorld**（标题界面不加载数据库），桥就会起来。验证：
+### 3.3 安装（手动，三步）
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health
-node tools\selfcheck.mjs          # 14 项端到端断言
+# 1) 编译（可跳过，用 release 附件里的 dll）
+$env:SEPHIRIA_GAME_DIR = "D:\steam\steamapps\common\Sephiria"
+dotnet build SephiriaMonitor -c Release
+
+# 2) 复制两个文件（hooks.json 必须和 dll 放一起）
+$dst = "$env:SEPHIRIA_GAME_DIR\BepInEx\plugins\SephiriaMonitor"
+New-Item -ItemType Directory -Force $dst | Out-Null
+Copy-Item SephiriaMonitor\bin\Release\SephiriaMonitor.dll $dst -Force
+Copy-Item SephiriaMonitor\hooks.json $dst -Force
+
+# 3) 启动游戏并读档
 ```
 
----
+### 3.4 验证装好了
 
+启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.10.0
+node tools\selfcheck.mjs                            # 期望 14 passed, 0 failed
+```
+
+BepInEx 控制台里应能看到 `[Info :SephiriaMonitor] bridge listening on http://127.0.0.1:47901/`。
+
+### 3.5 升级 / 卸载
+
+- **升级**：`git pull` 后重跑 `.\install.ps1 -Build -StopGame`（会覆盖同名 dll，配置与存档不动）。
+- **卸载**：删掉 `<游戏>\BepInEx\plugins\SephiriaMonitor\` 整个目录即可，游戏与存档不受影响。
+
+### 3.6 安装失败对照
+
+| 报错 | 原因 | 处理 |
+| --- | --- | --- |
+| `Game dir not found` | 游戏不在默认路径 | `-GameDir "E:\Steam\steamapps\common\Sephiria"` |
+| `No dotnet SDK found` | 只装了 runtime | 装 .NET SDK 8，或 `-Dotnet "C:\Program Files\dotnet\dotnet.exe"` |
+| `找不到 Sephiria 的游戏程序集` | `GameDir` 指错（少一层/多一层） | 指向**含 `Sephiria_Data`** 的那层 |
+| 复制 dll 失败（文件占用） | 游戏在跑 | 加 `-StopGame` 或手动退出游戏 |
+| 装完 `/health` 连不上 | 还停在标题界面 | 读档进 MainWorld |
 ## 4. MCP 接入
 
 ### 4.1 直接走 HTTP（推荐）
@@ -180,3 +226,31 @@ dotnet build SephiriaMonitor -c Release
 - 不含任何绕过、注入或修改游戏逻辑的代码；Harmony 只用于读取（`Postfix` 观测）。
 
 MIT License.
+## 10. 一句话让 AI 部署
+
+把下面**这一句**发给任意有终端权限的 AI（Claude Code / Codex / DSH 等），它会自己完成克隆、编译、部署、启动与自检：
+
+> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.10.0、运行 `node tools\selfcheck.mjs` 确认 14 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
+
+如果 AI 需要更明确的边界，可以再补一句：
+
+> 只允许写 `BepInEx\plugins\SephiriaMonitor\` 目录；不要动存档、不要动 `Sephiria_Data`，也不要改 BepInEx 配置；没有 .NET SDK 就先停下问我。
+
+### 10.1 AI 的执行清单（对应上面那句话）
+
+1. `git clone` 仓库到任意临时目录（或用户指定目录）。
+2. 找 SDK：`dotnet --list-sdks` 有 8.x 才继续；否则停下报告。
+3. 找游戏：存在 `Sephiria.exe` 且同级有 `Sephiria_Data\Managed\Assembly-CSharp.dll`。
+4. `$env:SEPHIRIA_GAME_DIR=<游戏目录>; dotnet build SephiriaMonitor -c Release`。
+5. 停游戏进程（若在跑）→ 建 `BepInEx\plugins\SephiriaMonitor` → 复制 `SephiriaMonitor.dll` + `hooks.json`。
+6. 启动游戏，等到 `GET /health` 返回 `scene":"MainWorld"`（标题界面不算成功）。
+7. `node tools\selfcheck.mjs`，把 `N passed, M failed` 原样报给用户。
+8. 汇报：版本号、dll 的 sha256 前 16 位、自检结果、MCP 端点 `http://127.0.0.1:47901/mcp`。
+
+### 10.2 部署完成后 AI 该先调什么
+
+```
+sephiria_health                     # 桥是否活着、版本
+sephiria_brief                      # 一次拿全：对局/玩家/战斗/连击/状态
+sephiria_hooks(q="ApplyDamage")     # 要找挂点时先查这里，别猜签名
+```
