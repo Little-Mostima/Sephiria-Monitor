@@ -64,7 +64,7 @@ function textOf(msg) {
   return content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
 }
 
-const tools = ['sephiria_health', 'sephiria_status', 'sephiria_player', 'sephiria_world', 'sephiria_logs', 'sephiria_events', 'sephiria_damage', 'sephiria_snapshot', 'sephiria_inventory', 'sephiria_progress', 'sephiria_objects', 'sephiria_object', 'sephiria_databases', 'sephiria_title', 'sephiria_saves', 'sephiria_enter', 'sephiria_map', 'sephiria_screenshot', 'sephiria_combos', 'sephiria_statuses', 'sephiria_combat', 'sephiria_runs', 'sephiria_hooks'];
+const tools = ['sephiria_health', 'sephiria_brief', 'sephiria_status', 'sephiria_inventory', 'sephiria_world', 'sephiria_events', 'sephiria_logs', 'sephiria_db', 'sephiria_hooks', 'sephiria_save', 'sephiria_screenshot'];
 
 async function main() {
   const init = await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'selfcheck', version: '1' } });
@@ -83,48 +83,70 @@ async function main() {
     return { ok: !res.isError && Boolean(text), text, error: msg.error };
   }
 
-  // 1. health
-  const health = await call('sephiria_health');
-  let healthJson = null;
-  try { healthJson = JSON.parse(health.text); } catch { /* not json */ }
-  record('sephiria_health', health.ok && healthJson && healthJson.ok === true,
-    healthJson ? 'scene=' + healthJson.scene + ' latency=' + healthJson.latencyMs + 'ms dbs=' + (healthJson.databases && healthJson.databases.files) + ' verdict=' + healthJson.verdict : health.text);
+      // 1. health
+    const health = await call('sephiria_health');
+    let healthJson = null;
+    try { healthJson = JSON.parse(health.text); } catch { /* not json */ }
+    record('sephiria_health', health.ok && healthJson && healthJson.ok === true,
+      healthJson ? 'version=' + healthJson.version + ' scene=' + healthJson.scene + ' dbs=' + (healthJson.databases && healthJson.databases.files) : health.text);
 
-  // 2. status
-  const status = await call('sephiria_status');
-  let statusJson = null;
-  try { statusJson = JSON.parse(status.text); } catch { /* not json */ }
-  record('sephiria_status', status.ok && statusJson && typeof statusJson.scene === 'string',
-    statusJson ? 'scene=' + statusJson.scene + ' hp=' + statusJson.hp + '/' + statusJson.maxHp + ' money=' + statusJson.money + ' units=' + statusJson.unitCount : status.text);
+    // 2. brief (health + run + player + progress + combat + combos + statuses in one call)
+    const brief = await call('sephiria_brief', { top: 4, sections: 'health,runs,combat,combos' });
+    let briefJson = null;
+    try { briefJson = JSON.parse(brief.text); } catch { /* not json */ }
+    record('sephiria_brief', brief.ok && briefJson && briefJson.run && briefJson.combat && briefJson.combos && Array.isArray(briefJson.combos.combos),
+      briefJson ? 'seed=' + (briefJson.run && briefJson.run.seed) + ' stages=' + (briefJson.run && briefJson.run.stages) +
+        ' combatRows=' + (briefJson.combat && briefJson.combat.rows) + ' hitRate=' + (briefJson.combat && briefJson.combat.hitRate) +
+        ' combos=' + ((briefJson.combos && briefJson.combos.combos) || []).length : brief.text);
 
-  // 3. logs (shape + counters)
-  const logs = await call('sephiria_logs', { n: 20 });
-  let logsJson = null;
-  try { logsJson = JSON.parse(logs.text); } catch { /* not json */ }
-  record('sephiria_logs', logs.ok && logsJson && Array.isArray(logsJson.lines),
-    logsJson ? 'lines=' + logsJson.count + ' errors=' + logsJson.errors + ' returned=' + logsJson.lines.length : logs.text);
+    // 3. status
+    const status = await call('sephiria_status');
+    let statusJson = null;
+    try { statusJson = JSON.parse(status.text); } catch { /* not json */ }
+    record('sephiria_status', status.ok && statusJson && typeof statusJson.scene === 'string',
+      statusJson ? 'scene=' + statusJson.scene + ' hp=' + statusJson.hp + '/' + statusJson.maxHp + ' money=' + statusJson.money + ' units=' + statusJson.unitCount : status.text);
 
-  // 4. databases (disk)
-  const dbs = await call('sephiria_databases');
-  let dbsJson = null;
-  try { dbsJson = JSON.parse(dbs.text); } catch { /* not json */ }
-  record('sephiria_databases', dbs.ok && dbsJson && Array.isArray(dbsJson.databases) && dbsJson.databases.length > 0,
-    dbsJson ? dbsJson.databases.length + ' csv, ' + dbsJson.total + ' rows' + (dbsJson.error ? ' error=' + dbsJson.error : '') : dbs.text);
+    // 4. inventory (live path: 64 custom stats + storage grid)
+    const inv = await call('sephiria_inventory');
+    let invJson = null;
+    try { invJson = JSON.parse(inv.text); } catch { /* not json */ }
+    const statKeys = invJson ? Object.keys(invJson).filter((k) => /^p\d+\.stat\./.test(k)).length : 0;
+    record('sephiria_inventory', inv.ok && invJson && invJson.live === true && statKeys >= 60,
+      invJson ? 'live=' + invJson.live + ' statKeys=' + statKeys + ' keys=' + invJson.keys : inv.text);
 
-  // 5. snapshot round trip (slow path through the main thread)
-  const saves = await call('sephiria_saves');
-let savesJson = null;
-try { savesJson = JSON.parse(saves.text); } catch { /* not json */ }
-record('sephiria_saves', saves.ok && savesJson && Array.isArray(savesJson.slots) && savesJson.slots.length === 3,
-  savesJson && savesJson.slots ? savesJson.slots.map((s) => s.name + (s.exists ? '(' + (s.playerName || '?') + ')' : '(empty)')).join(' ') : 'no slots');
+    // 5. logs
+    const logs = await call('sephiria_logs', { n: 20 });
+    let logsJson = null;
+    try { logsJson = JSON.parse(logs.text); } catch { /* not json */ }
+    record('sephiria_logs', logs.ok && logsJson && Array.isArray(logsJson.lines),
+      logsJson ? 'lines=' + logsJson.count + ' errors=' + logsJson.errors + ' returned=' + logsJson.lines.length : logs.text);
 
-const snap = await call('sephiria_snapshot', { reason: 'selfcheck' });
-  let snapJson = null;
-  try { snapJson = JSON.parse(snap.text); } catch { /* not json */ }
-  record('sephiria_snapshot', snap.ok && snapJson && snapJson.keys > 0,
-    snapJson ? 'keys=' + snapJson.keys + ' added=' + snapJson.added + ' changed=' + snapJson.changed : snap.text);
+    // 6. db listing
+    const dbs = await call('sephiria_db');
+    let dbsJson = null;
+    try { dbsJson = JSON.parse(dbs.text); } catch { /* not json */ }
+    record('sephiria_db', dbs.ok && dbsJson && Array.isArray(dbsJson.databases) && dbsJson.databases.length > 0,
+      dbsJson ? dbsJson.databases.length + ' csv, ' + dbsJson.total + ' rows' + (dbsJson.error ? ' error=' + dbsJson.error : '') : dbs.text);
 
-  // 6. unknown tool must be a clean error, not a crash
+    // 7. hooks catalogue
+    const hooks = await call('sephiria_hooks', { limit: 3 });
+    let hooksJson = null;
+    try { hooksJson = JSON.parse(hooks.text); } catch { /* not json */ }
+    const hooksDeep = await call('sephiria_hooks', { q: 'applydamage', limit: 2 });
+    let deepJson = null;
+    try { deepJson = JSON.parse(hooksDeep.text); } catch { /* not json */ }
+    const deepCallers = deepJson && deepJson.hooks && deepJson.hooks[0] ? (deepJson.hooks[0].callerCount || 0) : 0;
+    record('sephiria_hooks', hooks.ok && hooksJson && hooksJson.total === 62 && hooksJson.hooks.length === 3 && deepCallers > 0,
+      hooksJson ? 'total=' + hooksJson.total + ' applyDamageCallers=' + deepCallers : hooks.text);
+
+    // 8. save slots
+    const saves = await call('sephiria_save');
+    let savesJson = null;
+    try { savesJson = JSON.parse(saves.text); } catch { /* not json */ }
+    record('sephiria_save', saves.ok && savesJson && Array.isArray(savesJson.slots) && savesJson.slots.length === 3,
+      savesJson && savesJson.slots ? savesJson.slots.map((x) => x.name + (x.exists ? '(' + (x.playerName || '?') + ')' : '(empty)')).join(' ') : 'no slots');
+
+// 6. unknown tool must be a clean error, not a crash
   const bogus = await rpc('tools/call', { name: 'no_such_tool', arguments: {} });
   record('unknown tool rejected', Boolean(bogus.result && bogus.result.isError), textOf(bogus).slice(0, 80));
 
