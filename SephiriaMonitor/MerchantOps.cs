@@ -161,6 +161,72 @@ namespace SephiriaMonitor
             return Json.Write(root);
         }
 
+        /// <summary>Advances the run into another stage (generates its floors if missing) and moves everyone to its head floor.</summary>
+        public static string Stage(string name, string to)
+        {
+            DungeonManager dm = DungeonManager.Instance;
+            JsonObject root = Json.Obj();
+            if (dm == null)
+            {
+                root["error"] = "no DungeonManager";
+                return Json.Write(root);
+            }
+            string want = string.IsNullOrEmpty(name) ? to : name;
+            List<string> sorted = new List<string>(dm.sortedStages);
+            if (string.IsNullOrEmpty(want))
+            {
+                root["error"] = "pass name=stage";
+                root["stages"] = Json.Write(sorted);
+                return Json.Write(root);
+            }
+            List<string> candidates = new List<string>(sorted);
+            try
+            {
+                if (dm.Race != null && dm.Race.stages != null)
+                {
+                    foreach (StageEntity st in dm.Race.stages)
+                    {
+                        if (st != null && !string.IsNullOrEmpty(st.name) && !candidates.Contains(st.name)) { candidates.Add(st.name); }
+                    }
+                }
+            }
+            catch { }
+            string pick = null;
+            foreach (string s in candidates)
+            {
+                if (string.Equals(s, want, StringComparison.OrdinalIgnoreCase)) { pick = s; break; }
+            }
+            if (pick == null)
+            {
+                foreach (string s in candidates)
+                {
+                    if (s.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0) { pick = s; break; }
+                }
+            }
+            if (pick == null)
+            {
+                root["error"] = "stage not found for this race";
+                root["stages"] = Json.Write(candidates);
+                return Json.Write(root);
+            }
+            root["requested"] = pick;
+            root["stagesBefore"] = Json.Write(sorted);
+            try
+            {
+                dm.LoadStageAndMove(pick);
+            }
+            catch (System.Exception ex)
+            {
+                root["error"] = "LoadStageAndMove failed: " + ex.Message;
+                return Json.Write(root);
+            }
+            root["called"] = true;
+            root["stagesAfter"] = Json.Write(new List<string>(dm.sortedStages));
+            root["isRunStarted"] = dm.isRunStarted;
+            root["floorCount"] = dm.generatedFloors != null ? dm.generatedFloors.Count : 0;
+            return Json.Write(root);
+        }
+
         /// <summary>Moves the local player to another generated floor (write op, triggers a loading screen).</summary>
         public static string Goto(string target, string to, bool includeHidden)
         {

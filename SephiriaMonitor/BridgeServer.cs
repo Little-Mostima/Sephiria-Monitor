@@ -406,6 +406,9 @@ namespace SephiriaMonitor
                         return Live.Combos();
                     case "/statuses":
                         return Live.Statuses();
+                    case "/stage":
+                        return MerchantOps.Stage(Query(query, "name", ""), Query(query, "to", ""));
+
                     case "/merchants":
                         return MerchantOps.Merchants();
                     case "/floors":

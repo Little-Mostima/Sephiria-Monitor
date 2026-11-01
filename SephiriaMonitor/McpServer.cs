@@ -305,6 +305,9 @@ namespace SephiriaMonitor
                     return Raw("/merchants");
                 case "floors":
                     return Raw("/floors");
+                case "stage":
+                    route = "/stage";
+                    break;
                 case "goto":
                     route = "/goto";
                     break;
@@ -318,7 +321,7 @@ namespace SephiriaMonitor
                     route = "/shop";
                     break;
                 default:
-                    throw new ArgumentException("action must be merchants|floors|goto|tp|shop");
+                    throw new ArgumentException("action must be merchants|floors|stage|goto|tp|shop|sample");
             }
             var query = new StringBuilder();
             string index = Str(args, "index");
