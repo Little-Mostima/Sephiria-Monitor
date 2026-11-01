@@ -80,7 +80,7 @@ async function tool(name, args = {}) {
 
   const list = await rpc('tools/list', {});
   const tools = (list && list.result && list.result.tools) || [];
-  check('tools/list', tools.length === 12, `${tools.length} tools`);
+  check('tools/list', tools.length === 13, `${tools.length} tools`);
   check('tool names', tools.map((t) => t.name).includes('sephiria_brief'), tools.map((t) => t.name).join(','));
   check('tool schemas', tools.every((t) => t.inputSchema && t.inputSchema.type === 'object'), 'all object-rooted');
 
@@ -123,7 +123,10 @@ async function tool(name, args = {}) {
   }
 
     try {
-      const m = await tool('sephiria_merchant', { action: 'merchants' });
+      const tr = await tool('sephiria_travel', { action: 'spots', max: 5 });
+  check('travel spots', Array.isArray(tr.points) && typeof tr.total === 'number', `${tr.total} interactables on ${tr.floor}`);
+
+  const m = await tool('sephiria_merchant', { action: 'merchants' });
       check('merchants', Array.isArray(m.merchants), `${m.count} merchants`);
     } catch (e) {
       bad('merchants', e.message);

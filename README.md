@@ -18,7 +18,7 @@
 SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
   MonitorPlugin.cs        # 插件入口，版本号
   BridgeServer.cs         # 本地 HTTP 桥（GET 路由 + POST /mcp 入口）
-  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，12 个工具）
+  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，13 个工具）
   MerchantOps.cs          # 商人/楼层操作：列表、传送、开店、货架抽样
   Live.cs                 # 实时读取（inventory / combos / statuses）
   Combat.cs               # 战斗事件在线聚合
@@ -34,7 +34,7 @@ install.ps1               # 一键安装/升级
 `SurveillanceMod/`（原来的 Node MCP 服务器）**已经并入插件**，不再需要单独进程。0.10.0 起：
 
 - 插件启动即监听 `47901`，同时提供 GET 路由和 `POST /mcp`；
-- MCP 的 12 个工具在 C# 里实现，内部直接复用同一套路由函数；
+- MCP 的 13 个工具在 C# 里实现，内部直接复用同一套路由函数；
 - Node 只在**客户端只会说 stdio** 时用得上（`tools/mcp-stdio.mjs`，20 行逻辑，无依赖）。
 
 ---
@@ -176,6 +176,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | `sephiria_hooks` | mod 挂点目录（`q/area/kind/side/limit`），含真实调用点 |
 | `sephiria_save` | `action=slots`（存档槽）/`title`（标题状态）/`enter`（进档，轮询到 MainWorld） |
 | `sephiria_merchant` | **写操作**：`action=merchants` 列出商人+货架；`floors` 列出本局楼层及计划商人类型；`goto` 跳到指定楼层（`floor=` / `to=vendor`）；`tp` 传送到商人旁；`shop` 打开商店面板；`sample` 用真实配货算法抽样（不改游戏状态） |
+| `sephiria_travel` | **写操作**：`action=spots` 列出当前层的交互点（NPC/传送门/祭坛/奇迹选择器/床/任务板，含 type/name/pos/distance）；`use` 传送到该点并触发它的交互（与玩家按 F 同一条事件链 `Interactable.Interactive`）；`rooms` 列出程序化楼层的房间实例（边界/中心/传送点）；`jump` 传送到指定房间（`room=` 名字或 `index=`） |
 | `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
 同一个端口还提供 34 条只读 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
@@ -187,12 +188,14 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | 版本 | 变更 |
 | --- | --- |
 | **0.11.0** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
+| **0.12.0** | 新增「到达任何地方」工具：`/spots` `/use` `/gridrooms` `/jump`（交互点枚举与触发、程序化房间枚举与跳转），13 个工具 |
 | **0.10.0** | **MCP 服务器并入插件**（`POST /mcp`，11 工具），删除独立 Node 服务器；`hooks.json` 随插件部署，79 条挂点 |
 | 0.9.2 | 工具层精简 23 → 11 个复合工具（brief/world/save/db 合并），README 合并为单份 |
 | 0.9.1 | `sephiria_hooks` + `hooks.json`；`content-item` 模板；`smoke.ps1` |
 | 0.9.0 | `/combat` 在线聚合、`/runs` 对局边界、会话只留 6 个、events.jsonl 32 MB 封顶 |
 | 0.8.0 | `/inventory` 改实时、新增 `/combos` `/statuses` `/inventory_snapshot` |
 | `/merchants` `/floors` `/stage` `/goto` `/tp` `/shop` `/sample` | 商人列表 / 楼层列表 / **推进舞台**（`stage`，会自动生成该关楼层）/ 跳楼（`hidden=1` 允许隐藏层）/ 传送（`index`/`name`/`to` 或绝对 `x,y`）/ 开店 / 配货抽样（后四个是写操作或重计算） |
+| `/spots` `/use` `/gridrooms` `/jump` | 交互点枚举 / 触发交互（`index=`/`name=`/`type=`，`tp=1` 先传送）/ 程序化楼层房间表 / 传送到房间中心 |
 | 0.7.x | 初版：桥、事件流、数据库导出、MCP server（Node） |
 
 ---

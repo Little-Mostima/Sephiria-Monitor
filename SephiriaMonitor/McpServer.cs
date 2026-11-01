@@ -156,6 +156,7 @@ namespace SephiriaMonitor
                 case "sephiria_brief": text = Brief(args); break;
                 case "sephiria_status": text = Status(args); break;
                 case "sephiria_merchant": text = Merchant(args); break;
+                    case "sephiria_travel": text = Travel(args); break;
                 case "sephiria_inventory": text = Raw("/inventory"); break;
                 case "sephiria_world": text = World(args); break;
                 case "sephiria_events": text = Events(args); break;
@@ -332,9 +333,48 @@ namespace SephiriaMonitor
             if (!string.IsNullOrEmpty(to)) query.Append("&to=").Append(Uri.EscapeDataString(to));
             if (args["ox"] != null) query.Append("&ox=").Append(args["ox"].ToString());
             if (args["oy"] != null) query.Append("&oy=").Append(args["oy"].ToString());
-            foreach (string extra in new[] { "n", "charms", "tablets", "ratio", "seed", "x", "y", "hidden" })
+            foreach (string extra in new[] { "n", "charms", "tablets", "ratio", "seed", "x", "y", "hidden", "floor" })
             {
                 if (args[extra] != null) query.Append("&").Append(extra).Append("=").Append(args[extra].ToString());
+            }
+            if (query.Length > 0) query[0] = '?';
+            return Raw(route + query);
+        }
+
+        private static string Travel(JObject args)
+        {
+            string action = (Str(args, "action") ?? "spots").ToLowerInvariant();
+            string route;
+            switch (action)
+            {
+                case "spots":
+                    route = "/spots";
+                    break;
+                case "use":
+                    route = "/use";
+                    break;
+                case "rooms":
+                    route = "/gridrooms";
+                    break;
+                case "jump":
+                    route = "/jump";
+                    break;
+                default:
+                    throw new ArgumentException("action must be spots|use|rooms|jump");
+            }
+            var query = new StringBuilder();
+            foreach (string key in new[] { "type", "name", "index", "room", "max", "near", "ox", "oy" })
+            {
+                string v = Str(args, key);
+                if (string.IsNullOrEmpty(v)) continue;
+                query.Append("&").Append(key).Append("=").Append(Uri.EscapeDataString(v));
+            }
+            foreach (string key in new[] { "all", "tp" })
+            {
+                string v = Str(args, key);
+                if (string.IsNullOrEmpty(v)) continue;
+                bool on = v.Equals("true", StringComparison.OrdinalIgnoreCase) || v == "1";
+                query.Append("&").Append(key).Append("=").Append(on ? "1" : "0");
             }
             if (query.Length > 0) query[0] = '?';
             return Raw(route + query);
@@ -622,6 +662,22 @@ namespace SephiriaMonitor
                          ["x"] = Prop("number", "absolute world x (action=tp); overrides merchant pick"),
                          ["y"] = Prop("number", "absolute world y (action=tp)"),
                          ["hidden"] = Prop("boolean", "action=goto: also allow floors with isHidden=true")
+                     })),
+                Tool("sephiria_travel",
+                     "Reach any place. action=spots lists Interactable components (NPCs, portals, altars, beds, selectors) on the current floor with type/name/pos/distance; use teleports next to one and fires its interaction (same event the player's F key fires); rooms lists the current procedural floor's room instances with bounds/center/teleport point; jump teleports to a room by name or index. use/jump are write ops.",
+                     Schema(new[] { "action", "type", "name", "index", "room", "max", "near", "tp", "all", "ox", "oy" }, new JObject
+                     {
+                         ["action"] = Prop("string", "spots|use|rooms|jump (default spots)"),
+                         ["type"] = Prop("string", "Interactable subclass substring, e.g. NPC|Miniscript|Victory|Quest"),
+                         ["name"] = Prop("string", "gameObject name substring"),
+                         ["index"] = Prop("integer", "index from action=spots (or room index for action=jump)"),
+                         ["room"] = Prop("string", "room name substring for action=jump"),
+                         ["max"] = Prop("integer", "max rows for action=spots (default 30)"),
+                         ["near"] = Prop("number", "only points within this distance of the player"),
+                         ["tp"] = Prop("boolean", "action=use: teleport next to the target first (default true)"),
+                         ["all"] = Prop("boolean", "action=spots: include points on other loaded floors"),
+                         ["ox"] = Prop("number", "teleport offset x"),
+                         ["oy"] = Prop("number", "teleport offset y")
                      })),
                 Tool("sephiria_screenshot", "Fallback screenshot; prefer the JSON tools.", Schema())
             };

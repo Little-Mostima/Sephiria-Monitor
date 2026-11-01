@@ -426,6 +426,26 @@ namespace SephiriaMonitor
                             Has(query, "x") ? Num(query, "x", 0f) : (float?)null, Has(query, "y") ? Num(query, "y", 0f) : (float?)null);
                     case "/shop":
                         return MerchantOps.OpenShop(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""));
+
+                    case "/spots":
+                        return MainThreadPump.Run(delegate
+                        {
+                            return WorldOps.Spots(Query(query, "type", ""), Query(query, "name", ""), Int(query, "max", 30),
+                                Query(query, "all", "0") == "1", Num(query, "near", 0f));
+                        }, 8000);
+                    case "/use":
+                        return MainThreadPump.Run(delegate
+                        {
+                            return WorldOps.Use(Query(query, "index", ""), Query(query, "name", ""), Query(query, "type", ""),
+                                Query(query, "tp", "1") != "0", Num(query, "ox", 1.2f), Num(query, "oy", 0f));
+                        }, 8000);
+                    case "/gridrooms":
+                        return MainThreadPump.Run(delegate { return WorldOps.Rooms(); }, 8000);
+                    case "/jump":
+                        return MainThreadPump.Run(delegate
+                        {
+                            return WorldOps.Jump(Query(query, "room", ""), Query(query, "index", ""), Num(query, "ox", 0f), Num(query, "oy", 0f));
+                        }, 8000);
                     case "/progress":
                         return Filtered(new string[] { "run.floor", "run.hard", "run.seed", "run.env" });
                     case "/screenshot":
