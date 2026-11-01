@@ -357,7 +357,9 @@ const tools = [
       });
       const out = rows.slice(0, lim).map((h) => ({
         id: h.id, area: h.area, name: h.name, signature: h.signature, source: h.source,
-        side: h.side, kind: h.kind, use: h.use, pitfall: h.pitfall
+        side: h.side, kind: h.kind, use: h.use, pitfall: h.pitfall,
+        callerCount: h.callerCount || 0,
+        callers: (h.callers || []).slice(0, 3).map((c) => c.file + ':' + c.line)
       }));
       return compact(JSON.stringify({ total: rows.length, shown: out.length, note: rows.length > lim ? 'raise limit or narrow q' : undefined, hooks: out }), 12000);
     }
