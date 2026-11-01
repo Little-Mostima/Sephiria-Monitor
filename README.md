@@ -32,7 +32,7 @@ SephiriaMonitor/     BepInEx 插件（C# / netstandard2.1，19 个 .cs）
   ├─ MonitorPatches.cs     Harmony 补丁（伤害/经验/金钱/拾取/单位注册表）
   ├─ TitleControl.cs       标题界面进存档
   └─ README.md             插件自身的技术说明
-SurveillanceMod/     MCP 服务器（Node ≥ 18，ESM，零依赖，22 个工具）
+SurveillanceMod/     MCP 服务器（Node ≥ 18，ESM，零依赖，23 个工具）
   ├─ server.mjs            stdio JSON-RPC，转发到 127.0.0.1:47901
   ├─ selfcheck.mjs         自检 10 项，输出 PASS/FAIL
   └─ README.md             MCP 侧说明与工具清单
@@ -48,14 +48,14 @@ SurveillanceMod/     MCP 服务器（Node ≥ 18，ESM，零依赖，22 个工�
 
 ### 方式 A：用 Releases 的预编译包
 
-1. 下载 `SephiriaMonitor-0.9.0.zip`，解压到**游戏根目录**（Steam → 右键游戏 → 管理 → 浏览本地文件），得到
+1. 下载 `SephiriaMonitor-0.9.1.zip`，解压到**游戏根目录**（Steam → 右键游戏 → 管理 → 浏览本地文件），得到
    `BepInEx\plugins\SephiriaMonitor\SephiriaMonitor.dll`。
-2. 下载 `SurveillanceMod-0.9.0.zip` 解压到任意目录（如 `D:\tools\SurveillanceMod\`）。
+2. 下载 `SurveillanceMod-0.9.1.zip` 解压到任意目录（如 `D:\tools\SurveillanceMod\`）。
 3. 启动游戏（标题界面就绪后会自动进入存档），验证桥：
    ```powershell
    (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:47901/health).Content
    ```
-   看到 `"mod":"SephiriaMonitor","version":"0.9.0"` 即成功。
+   看到 `"mod":"SephiriaMonitor","version":"0.9.1"` 即成功。
 
 ### 方式 B：从源码编译
 
@@ -123,7 +123,7 @@ node .\SurveillanceMod\selfcheck.mjs     # 游戏在跑时期望 10/10；没开�
 
 `/` `/health` `/run` `/player` `/world` `/state` `/statefull` `/scene` `/objects` `/object` `/logs` `/events` `/damage` `/combat` `/runs` `/path` `/floor` `/map` `/rooms` `/mappath` `/mapscan` `/probe` `/inventory` `/inventory_snapshot` `/combos` `/statuses` `/progress` `/screenshot` `/snapshot` `/session` `/title` `/saves` `/enter` `/enterstatus`
 
-MCP 工具 22 个：`sephiria_health` `sephiria_status` `sephiria_player` `sephiria_world` `sephiria_logs` `sephiria_events` `sephiria_damage` `sephiria_snapshot` `sephiria_inventory` `sephiria_combos` `sephiria_statuses` `sephiria_combat` `sephiria_runs` `sephiria_progress` `sephiria_objects` `sephiria_object` `sephiria_databases` `sephiria_title` `sephiria_saves` `sephiria_enter` `sephiria_map` `sephiria_screenshot`
+MCP 工具 23 个：`sephiria_health` `sephiria_status` `sephiria_player` `sephiria_world` `sephiria_logs` `sephiria_events` `sephiria_damage` `sephiria_snapshot` `sephiria_inventory` `sephiria_combos` `sephiria_statuses` `sephiria_combat` `sephiria_runs` `sephiria_hooks` `sephiria_progress` `sephiria_objects` `sephiria_object` `sephiria_databases` `sephiria_title` `sephiria_saves` `sephiria_enter` `sephiria_map` `sephiria_screenshot`
 
 ## 数据落盘
 

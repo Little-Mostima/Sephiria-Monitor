@@ -18,8 +18,24 @@ const BRIDGE = (process.env.SEPHIRIA_BRIDGE || CFG.bridge || 'http://127.0.0.1:4
 const TIMEOUT = Math.max(1000, Number(process.env.SEPHIRIA_BRIDGE_TIMEOUT_MS || CFG.timeoutMs) || 10000);
 const SLOW_TIMEOUT = Math.max(TIMEOUT, Number(CFG.slowTimeoutMs) || 45000); // /snapshot waits on the Unity main thread
 const HTTP_PORT = Math.max(1024, Number(process.env.SURVEILLANCEMOD_HTTP_PORT || CFG.httpPort) || 47902);
-const VERSION = '0.9.0';
+const VERSION = '0.9.1';
 const PROTOCOL = '2024-11-05';
+
+// Machine-readable hook catalogue shipped next to this server (SurveillanceMod/hooks.json).
+let HOOKS_CACHE = null;
+function loadHooks() {
+  if (HOOKS_CACHE) return HOOKS_CACHE;
+  const candidates = [
+    path.join(HERE, 'hooks.json'),
+    path.join(HERE, '..', '_re', 'modding', 'hooks.json'),
+    'D:\\AscensionMod\\_re\\modding\\hooks.json'
+  ];
+  for (const file of candidates) {
+    try { HOOKS_CACHE = JSON.parse(fs.readFileSync(file, 'utf8')); return HOOKS_CACHE; } catch { }
+  }
+  throw new Error('hooks.json not found next to server.mjs; reinstall with install.ps1 (it copies SurveillanceMod files).');
+}
+
 
 function send(msg) {
   process.stdout.write(JSON.stringify(msg) + '\n');
@@ -312,6 +328,39 @@ const tools = [
     description: 'Current run boundary: inRun, destiny seed, raceId, stage list, floor counts, session serial, players, plus combat counters. Run start/end also appear as kind="run" events.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run: async () => compact(await getJson('/runs'), 8000)
+  },
+  {
+    name: 'sephiria_hooks',
+    description: 'Query the game hook catalogue (62 entries: class.member, signature, file:line, server/client side, api/event/harmony, what it is for, known pitfall). Use this BEFORE reading decompiled sources.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'substring across name/signature/use/pitfall, e.g. damage, shop, floor, charm' },
+        area: { type: 'string', description: 'lifecycle | data | combat | world | ui | save | net | antipattern' },
+        kind: { type: 'string', description: 'api | event | harmony | avoid' },
+        side: { type: 'string', description: 'server | client | both | -' },
+        limit: { type: 'number', description: 'default 20, max 62' }
+      },
+      additionalProperties: false
+    },
+    run: async (args) => {
+      const doc = loadHooks();
+      const q = String(args.q || '').toLowerCase();
+      const lim = Math.min(62, Math.max(1, Number(args.limit) || 20));
+      const rows = doc.hooks.filter((h) => {
+        if (args.area && String(h.area) !== String(args.area)) return false;
+        if (args.kind && String(h.kind) !== String(args.kind)) return false;
+        if (args.side && String(h.side) !== String(args.side)) return false;
+        if (!q) return true;
+        const hay = [h.id, h.name, h.signature, h.use, h.pitfall, h.source].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+      const out = rows.slice(0, lim).map((h) => ({
+        id: h.id, area: h.area, name: h.name, signature: h.signature, source: h.source,
+        side: h.side, kind: h.kind, use: h.use, pitfall: h.pitfall
+      }));
+      return compact(JSON.stringify({ total: rows.length, shown: out.length, note: rows.length > lim ? 'raise limit or narrow q' : undefined, hooks: out }), 12000);
+    }
   },
   {
     name: 'sephiria_progress',

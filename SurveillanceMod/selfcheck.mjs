@@ -64,7 +64,7 @@ function textOf(msg) {
   return content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
 }
 
-const tools = ['sephiria_health', 'sephiria_status', 'sephiria_player', 'sephiria_world', 'sephiria_logs', 'sephiria_events', 'sephiria_damage', 'sephiria_snapshot', 'sephiria_inventory', 'sephiria_progress', 'sephiria_objects', 'sephiria_object', 'sephiria_databases', 'sephiria_title', 'sephiria_saves', 'sephiria_enter', 'sephiria_map', 'sephiria_screenshot', 'sephiria_combos', 'sephiria_statuses', 'sephiria_combat', 'sephiria_runs'];
+const tools = ['sephiria_health', 'sephiria_status', 'sephiria_player', 'sephiria_world', 'sephiria_logs', 'sephiria_events', 'sephiria_damage', 'sephiria_snapshot', 'sephiria_inventory', 'sephiria_progress', 'sephiria_objects', 'sephiria_object', 'sephiria_databases', 'sephiria_title', 'sephiria_saves', 'sephiria_enter', 'sephiria_map', 'sephiria_screenshot', 'sephiria_combos', 'sephiria_statuses', 'sephiria_combat', 'sephiria_runs', 'sephiria_hooks'];
 
 async function main() {
   const init = await rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'selfcheck', version: '1' } });

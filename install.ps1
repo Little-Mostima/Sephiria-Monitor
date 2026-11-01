@@ -13,7 +13,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repo = Split-Path -Parent $here
+$repo = $here   # install.ps1 sits at the repo root; sources are "$repo\SephiriaMonitor"
 
 function Find-GameDir {
     if ($GameDir -and (Test-Path (Join-Path $GameDir "Sephiria.exe"))) { return (Resolve-Path $GameDir).Path }
@@ -40,6 +40,7 @@ Write-Host "game   : $game"
 
 $pluginDir = Join-Path $game "BepInEx\plugins\SephiriaMonitor"
 $dll = Join-Path $here "SephiriaMonitor.dll"
+if (-not (Test-Path $dll)) { $dll = Join-Path $here "dist\SephiriaMonitor.dll" }
 if (-not (Test-Path $dll)) { $dll = Join-Path $repo "SephiriaMonitor\bin\Release\SephiriaMonitor.dll" }
 if ($Build) {
     $dn = Find-Dotnet

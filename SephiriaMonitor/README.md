@@ -1,4 +1,4 @@
-# SephiriaMonitor 0.9.0
+# SephiriaMonitor 0.9.1
 
 Sephiria（Steam AppID 2436940，Unity 6000.3.21f1，Mono）的 **BepInEx 纯监听插件**：在游戏进程内被动采集运行状态、战斗事件、楼层结构与静态数据库，通过本地 HTTP 桥（默认 `127.0.0.1:47901`，只读 GET）交给外部（MCP / 脚本 / AI agent）。游戏界面里不画任何东西。
 
@@ -11,7 +11,7 @@ Sephiria（Steam AppID 2436940，Unity 6000.3.21f1，Mono）的 **BepInEx 纯监
 1. 装好 BepInEx 5.4.x（游戏根目录出现 `BepInEx/` 与 `winhttp.dll`）。
 2. 把 `BepInEx/plugins/SephiriaMonitor/SephiriaMonitor.dll` 放到游戏根目录同路径下。
 3. 启动游戏。日志出现 `BOOT|ready|bridge=47901|session=...` 与 `HARMONY|summary|patched=16|...` 即成功。
-4. `GET http://127.0.0.1:47901/health` 应返回 `{"ok":true,"version":"0.9.0",...}`。
+4. `GET http://127.0.0.1:47901/health` 应返回 `{"ok":true,"version":"0.9.1",...}`。
 
 升级插件前**必须先关游戏**：dll 被进程映射时覆盖会失败（Windows 报 user-mapped section open）。
 
