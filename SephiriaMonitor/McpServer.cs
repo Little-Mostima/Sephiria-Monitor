@@ -329,7 +329,7 @@ namespace SephiriaMonitor
             if (!string.IsNullOrEmpty(to)) query.Append("&to=").Append(Uri.EscapeDataString(to));
             if (args["ox"] != null) query.Append("&ox=").Append(args["ox"].ToString());
             if (args["oy"] != null) query.Append("&oy=").Append(args["oy"].ToString());
-            foreach (string extra in new[] { "n", "charms", "tablets", "ratio", "seed" })
+            foreach (string extra in new[] { "n", "charms", "tablets", "ratio", "seed", "x", "y", "hidden" })
             {
                 if (args[extra] != null) query.Append("&").Append(extra).Append("=").Append(args[extra].ToString());
             }
@@ -607,7 +607,7 @@ namespace SephiriaMonitor
                      })),
                 Tool("sephiria_merchant",
                      "Merchants and floors. action=merchants lists loaded merchants + shelves; floors lists the run's floors with planned merchant type; goto moves to a floor (floor=guid/name or to=vendor); tp teleports next to a merchant; shop opens its shop panel. goto/tp/shop are write ops.",
-                     Schema(new[] { "action", "index", "name", "to", "floor", "ox", "oy", "n", "charms", "tablets", "ratio", "seed" }, new JObject
+                     Schema(new[] { "action", "index", "name", "to", "floor", "ox", "oy", "x", "y", "hidden", "n", "charms", "tablets", "ratio", "seed" }, new JObject
                      {
                          ["action"] = Prop("string", "merchants|floors|goto|tp|shop (default merchants)"),
                          ["floor"] = Prop("string", "floor guid or name substring for action=goto"),
@@ -615,7 +615,10 @@ namespace SephiriaMonitor
                          ["name"] = Prop("string", "name/socialID substring"),
                          ["to"] = Prop("string", "vendor|union|small|potion (merchant type)"),
                          ["ox"] = Prop("number", "teleport offset x from the merchant (default 1.6)"),
-                         ["oy"] = Prop("number", "teleport offset y (default 0)")
+                         ["oy"] = Prop("number", "teleport offset y (default 0)"),
+                         ["x"] = Prop("number", "absolute world x (action=tp); overrides merchant pick"),
+                         ["y"] = Prop("number", "absolute world y (action=tp)"),
+                         ["hidden"] = Prop("boolean", "action=goto: also allow floors with isHidden=true")
                      })),
                 Tool("sephiria_screenshot", "Fallback screenshot; prefer the JSON tools.", Schema())
             };

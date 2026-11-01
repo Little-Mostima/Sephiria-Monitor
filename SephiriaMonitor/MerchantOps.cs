@@ -27,14 +27,28 @@ namespace SephiriaMonitor
             return Json.Write(root);
         }
 
-        /// <summary>Teleport parameter can be: index=N | name=substring | to=vendor|union|small|potion|any.</summary>
-        public static string Teleport(string index, string name, string to, float offsetX, float offsetY)
+        /// <summary>
+        /// Teleports the local player. Either to absolute world coordinates (x,y), or next to a
+        /// merchant picked by index / name substring / type (to=vendor|union|small|potion).
+        /// </summary>
+        public static string Teleport(string index, string name, string to, float offsetX, float offsetY, float? absX, float? absY)
         {
             PlayerAvatar player = LocalPlayer();
             JsonObject root = Json.Obj();
             if (player == null)
             {
                 root["error"] = "no local player";
+                return Json.Write(root);
+            }
+            if (absX.HasValue || absY.HasValue)
+            {
+                Vector3 from = player.transform.position;
+                Vector3 abs = new Vector3(absX ?? from.x, absY ?? from.y, from.z);
+                player.ReqSetPosition(abs, true);
+                root["teleportedTo"] = "coordinates";
+                root["from"] = Pair(from.x, from.y);
+                root["position"] = Pair(abs.x, abs.y);
+                root["distance"] = R(Vector3.Distance(from, abs));
                 return Json.Write(root);
             }
             if (!string.IsNullOrEmpty(index) || !string.IsNullOrEmpty(name) || !string.IsNullOrEmpty(to))
@@ -55,7 +69,7 @@ namespace SephiriaMonitor
             }
             else
             {
-                root["error"] = "pass index=, name= or to=";
+                root["error"] = "pass index=, name=, to=, or x=/y=";
             }
             return Json.Write(root);
         }
@@ -148,7 +162,7 @@ namespace SephiriaMonitor
         }
 
         /// <summary>Moves the local player to another generated floor (write op, triggers a loading screen).</summary>
-        public static string Goto(string target, string to)
+        public static string Goto(string target, string to, bool includeHidden)
         {
             JsonObject root = Json.Obj();
             PlayerAvatar player = LocalPlayer();
@@ -165,7 +179,7 @@ namespace SephiriaMonitor
             foreach (KeyValuePair<string, FloorData> kv in dm.generatedFloors)
             {
                 FloorData f = kv.Value;
-                if (f == null || f.isHidden)
+                if (f == null || (f.isHidden && !includeHidden))
                 {
                     continue;
                 }

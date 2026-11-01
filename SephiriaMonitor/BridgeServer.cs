@@ -417,9 +417,10 @@ namespace SephiriaMonitor
                                 Num(query, "ratio", 1.0f), Int(query, "seed", 0));
                         }, 20000);
                     case "/goto":
-                        return MerchantOps.Goto(Query(query, "floor", Query(query, "name", "")), Query(query, "to", ""));
+                        return MerchantOps.Goto(Query(query, "floor", Query(query, "name", "")), Query(query, "to", ""), Query(query, "hidden", "0") == "1");
                     case "/tp":
-                        return MerchantOps.Teleport(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""), Num(query, "ox", 1.6f), Num(query, "oy", 0f));
+                        return MerchantOps.Teleport(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""), Num(query, "ox", 1.6f), Num(query, "oy", 0f),
+                            Has(query, "x") ? Num(query, "x", 0f) : (float?)null, Has(query, "y") ? Num(query, "y", 0f) : (float?)null);
                     case "/shop":
                         return MerchantOps.OpenShop(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""));
                     case "/progress":
@@ -555,6 +556,11 @@ namespace SephiriaMonitor
         {
             string v;
             return q.TryGetValue(key, out v) ? v : fallback;
+        }
+
+        private static bool Has(Dictionary<string, string> q, string key)
+        {
+            return q.ContainsKey(key);
         }
 
         private static int Int(Dictionary<string, string> q, string key, int fallback)
