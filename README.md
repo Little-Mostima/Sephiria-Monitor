@@ -24,7 +24,7 @@
 ```
 SephiriaMonitor/     BepInEx 插件（C# / netstandard2.1，19 个 .cs）
   ├─ MonitorPlugin.cs      入口，BepInPlugin(com.surveillance.sephiriamonitor)
-  ├─ BridgeServer.cs       本地 HTTP 桥（29 条只读路由）
+  ├─ BridgeServer.cs       本地 HTTP 桥（32 条只读路由）
   ├─ Events.cs             事件环形缓冲 + events.jsonl
   ├─ PlayerState.cs        1 Hz 状态快照
   ├─ FloorDump.cs          楼层/房间/瓦片转储、ASCII 地图、BFS 寻路
@@ -32,7 +32,7 @@ SephiriaMonitor/     BepInEx 插件（C# / netstandard2.1，19 个 .cs）
   ├─ MonitorPatches.cs     Harmony 补丁（伤害/经验/金钱/拾取/单位注册表）
   ├─ TitleControl.cs       标题界面进存档
   └─ README.md             插件自身的技术说明
-SurveillanceMod/     MCP 服务器（Node ≥ 18，ESM，零依赖，18 个工具）
+SurveillanceMod/     MCP 服务器（Node ≥ 18，ESM，零依赖，20 个工具）
   ├─ server.mjs            stdio JSON-RPC，转发到 127.0.0.1:47901
   ├─ selfcheck.mjs         自检 10 项，输出 PASS/FAIL
   └─ README.md             MCP 侧说明与工具清单
@@ -48,14 +48,14 @@ SurveillanceMod/     MCP 服务器（Node ≥ 18，ESM，零依赖，18 个工�
 
 ### 方式 A：用 Releases 的预编译包
 
-1. 下载 `SephiriaMonitor-0.7.2.zip`，解压到**游戏根目录**（Steam → 右键游戏 → 管理 → 浏览本地文件），得到
+1. 下载 `SephiriaMonitor-0.8.0.zip`，解压到**游戏根目录**（Steam → 右键游戏 → 管理 → 浏览本地文件），得到
    `BepInEx\plugins\SephiriaMonitor\SephiriaMonitor.dll`。
-2. 下载 `SurveillanceMod-0.7.2.zip` 解压到任意目录（如 `D:\tools\SurveillanceMod\`）。
+2. 下载 `SurveillanceMod-0.8.0.zip` 解压到任意目录（如 `D:\tools\SurveillanceMod\`）。
 3. 启动游戏（标题界面就绪后会自动进入存档），验证桥：
    ```powershell
    (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:47901/health).Content
    ```
-   看到 `"mod":"SephiriaMonitor","version":"0.7.2"` 即成功。
+   看到 `"mod":"SephiriaMonitor","version":"0.8.0"` 即成功。
 
 ### 方式 B：从源码编译
 
@@ -119,11 +119,11 @@ node .\SurveillanceMod\selfcheck.mjs     # 游戏在跑时期望 10/10；没开�
 | `data.DatabaseExport` | `true` | 导出数据库 CSV |
 | `data.ProbeEvents` | `false` | 记录「自己打自己」的命中测试条目（默认只计数） |
 
-## 桥路由速查（29 条，除 `/enter` 外全部只读）
+## 桥路由速查（32 条，除 `/enter` 外全部只读）
 
-`/` `/health` `/run` `/player` `/world` `/state` `/statefull` `/scene` `/objects` `/object` `/logs` `/events` `/damage` `/path` `/floor` `/map` `/rooms` `/mappath` `/mapscan` `/probe` `/inventory` `/progress` `/screenshot` `/snapshot` `/session` `/title` `/saves` `/enter` `/enterstatus`
+`/` `/health` `/run` `/player` `/world` `/state` `/statefull` `/scene` `/objects` `/object` `/logs` `/events` `/damage` `/path` `/floor` `/map` `/rooms` `/mappath` `/mapscan` `/probe` `/inventory` `/inventory_snapshot` `/combos` `/statuses` `/progress` `/screenshot` `/snapshot` `/session` `/title` `/saves` `/enter` `/enterstatus`
 
-MCP 工具 18 个：`sephiria_health` `sephiria_status` `sephiria_player` `sephiria_world` `sephiria_logs` `sephiria_events` `sephiria_damage` `sephiria_snapshot` `sephiria_inventory` `sephiria_progress` `sephiria_objects` `sephiria_object` `sephiria_databases` `sephiria_title` `sephiria_saves` `sephiria_enter` `sephiria_map` `sephiria_screenshot`
+MCP 工具 20 个：`sephiria_health` `sephiria_status` `sephiria_player` `sephiria_world` `sephiria_logs` `sephiria_events` `sephiria_damage` `sephiria_snapshot` `sephiria_inventory` `sephiria_combos` `sephiria_statuses` `sephiria_progress` `sephiria_objects` `sephiria_object` `sephiria_databases` `sephiria_title` `sephiria_saves` `sephiria_enter` `sephiria_map` `sephiria_screenshot`
 
 ## 数据落盘
 

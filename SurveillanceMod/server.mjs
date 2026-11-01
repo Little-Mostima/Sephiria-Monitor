@@ -18,7 +18,7 @@ const BRIDGE = (process.env.SEPHIRIA_BRIDGE || CFG.bridge || 'http://127.0.0.1:4
 const TIMEOUT = Math.max(1000, Number(process.env.SEPHIRIA_BRIDGE_TIMEOUT_MS || CFG.timeoutMs) || 10000);
 const SLOW_TIMEOUT = Math.max(TIMEOUT, Number(CFG.slowTimeoutMs) || 45000); // /snapshot waits on the Unity main thread
 const HTTP_PORT = Math.max(1024, Number(process.env.SURVEILLANCEMOD_HTTP_PORT || CFG.httpPort) || 47902);
-const VERSION = '0.7.2';
+const VERSION = '0.8.0';
 const PROTOCOL = '2024-11-05';
 
 function send(msg) {
@@ -281,9 +281,21 @@ const tools = [
   },
   {
     name: 'sephiria_inventory',
-    description: 'Player inventory, tablets, storage and character stats from the last snapshot (call sephiria_snapshot first if empty).',
+    description: 'Player inventory, tablets, storage and character stats computed live at call time (no snapshot needed).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run: async () => compact(await getJson('/inventory'), 8000)
+  },
+  {
+    name: 'sephiria_combos',
+    description: 'Live combo/set effects on the player: category, current count, applied threshold and the statuses each tier grants.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    run: async () => compact(await getJson('/combos'), 8000)
+  },
+  {
+    name: 'sephiria_statuses',
+    description: 'Live buffs, debuffs and orphaned status instances of every player (stack, remaining ratio, attacker).',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    run: async () => compact(await getJson('/statuses'), 8000)
   },
   {
     name: 'sephiria_progress',

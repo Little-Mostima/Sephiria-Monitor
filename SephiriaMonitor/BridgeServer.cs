@@ -315,7 +315,13 @@ namespace SephiriaMonitor
                             return MainThreadPump.Run(delegate { return FloorDump.Probe(px, py); }, 6000);
                         }
                     case "/inventory":
+                        return Live.Inventory();
+                    case "/inventory_snapshot":
                         return Filtered(new string[] { ".inv.", ".tablet.", "stat.", "tablets" });
+                    case "/combos":
+                        return Live.Combos();
+                    case "/statuses":
+                        return Live.Statuses();
                     case "/progress":
                         return Filtered(new string[] { "run.floor", "run.hard", "run.seed", "run.env" });
                     case "/screenshot":
