@@ -284,6 +284,10 @@ namespace SephiriaMonitor
                         return Events.Tail(int.Parse(Query(query, "n", "100")), long.Parse(Query(query, "after", "0")), Query(query, "kind", ""));
                     case "/damage":
                         return Events.DamageTail(int.Parse(Query(query, "n", "50")));
+                    case "/combat":
+                        return Combat.Stats(int.Parse(Query(query, "top", "12")));
+                    case "/runs":
+                        return Json.Write(RunTracker.Current());
                     case "/path":
                         return Movement.PathJson(int.Parse(Query(query, "n", "600")));
                     case "/floor":

@@ -18,7 +18,7 @@ const BRIDGE = (process.env.SEPHIRIA_BRIDGE || CFG.bridge || 'http://127.0.0.1:4
 const TIMEOUT = Math.max(1000, Number(process.env.SEPHIRIA_BRIDGE_TIMEOUT_MS || CFG.timeoutMs) || 10000);
 const SLOW_TIMEOUT = Math.max(TIMEOUT, Number(CFG.slowTimeoutMs) || 45000); // /snapshot waits on the Unity main thread
 const HTTP_PORT = Math.max(1024, Number(process.env.SURVEILLANCEMOD_HTTP_PORT || CFG.httpPort) || 47902);
-const VERSION = '0.8.0';
+const VERSION = '0.9.0';
 const PROTOCOL = '2024-11-05';
 
 function send(msg) {
@@ -296,6 +296,22 @@ const tools = [
     description: 'Live buffs, debuffs and orphaned status instances of every player (stack, remaining ratio, attacker).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run: async () => compact(await getJson('/statuses'), 8000)
+  },
+  {
+    name: 'sephiria_combat',
+    description: 'In-run combat aggregation kept by the plugin: hit rate, fail reasons, damage by source/element/victim, player deaths, loot and money counters, 60s burst curve. Cheaper than scanning /damage.',
+    inputSchema: {
+      type: 'object',
+      properties: { top: { type: 'number', description: 'rows per breakdown, default 12, max 40' } },
+      additionalProperties: false
+    },
+    run: async (args) => compact(await getJson('/combat?top=' + Math.min(40, Math.max(1, Number(args.top) || 12))), 9000)
+  },
+  {
+    name: 'sephiria_runs',
+    description: 'Current run boundary: inRun, destiny seed, raceId, stage list, floor counts, session serial, players, plus combat counters. Run start/end also appear as kind="run" events.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    run: async () => compact(await getJson('/runs'), 8000)
   },
   {
     name: 'sephiria_progress',

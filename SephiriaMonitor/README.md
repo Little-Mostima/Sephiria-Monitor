@@ -1,4 +1,4 @@
-# SephiriaMonitor 0.8.0
+# SephiriaMonitor 0.9.0
 
 Sephiria（Steam AppID 2436940，Unity 6000.3.21f1，Mono）的 **BepInEx 纯监听插件**：在游戏进程内被动采集运行状态、战斗事件、楼层结构与静态数据库，通过本地 HTTP 桥（默认 `127.0.0.1:47901`，只读 GET）交给外部（MCP / 脚本 / AI agent）。游戏界面里不画任何东西。
 
@@ -11,7 +11,7 @@ Sephiria（Steam AppID 2436940，Unity 6000.3.21f1，Mono）的 **BepInEx 纯监
 1. 装好 BepInEx 5.4.x（游戏根目录出现 `BepInEx/` 与 `winhttp.dll`）。
 2. 把 `BepInEx/plugins/SephiriaMonitor/SephiriaMonitor.dll` 放到游戏根目录同路径下。
 3. 启动游戏。日志出现 `BOOT|ready|bridge=47901|session=...` 与 `HARMONY|summary|patched=16|...` 即成功。
-4. `GET http://127.0.0.1:47901/health` 应返回 `{"ok":true,"version":"0.8.0",...}`。
+4. `GET http://127.0.0.1:47901/health` 应返回 `{"ok":true,"version":"0.9.0",...}`。
 
 升级插件前**必须先关游戏**：dll 被进程映射时覆盖会失败（Windows 报 user-mapped section open）。
 
@@ -29,10 +29,10 @@ Sephiria（Steam AppID 2436940，Unity 6000.3.21f1，Mono）的 **BepInEx 纯监
 | data/Snapshots | true | 存档键快照 |
 | data/ProbeEvents | false | 是否把"自己打自己"的探针命中写进事件流（默认只计数） |
 
-## HTTP 路由（32 条，除 `/enter` 外全部只读）
+## HTTP 路由（34 条，除 `/enter` 外全部只读）
 
 - 实时状态：`/` `/health` `/run`（轻量，单位数 1s 缓存）`/player`（全量 + nearby 24 个）`/world` `/state` `/statefull` `/scene` `/progress`（只 20 个关键键）`/inventory`（实时反射，非快照）`/inventory_snapshot`（旧快照口径）`/combos`（连击/套装）`/statuses`（buff/debuff/状态实例）`/logs` `/session`
-- 事件流：`/events?n=&after=&kind=`（根对象带 `cursor`，单调递增、`after` 排他；`kind` 过滤）、`/damage?n=`、`/path?n=`（帧内位移轨迹）
+- 事件流：`/events?n=&after=&kind=`（根对象带 `cursor`，单调递增、`after` 排他；`kind` 过滤）、`/damage?n=`、`/combat?top=`（**本轮聚合**：命中率/失败原因/按来源·元素·受击者汇总/玩家受击/掉落·金钱计数/60s 爆发曲线）、`/runs`（对局边界：seed/stages/raceId/timeInWorld + combat 计数）、`/path?n=`（帧内位移轨迹）
 - 楼层：`/floor`、`/map?r=`（瓦片 ASCII）、`/rooms`、`/mappath?x=&y=`（BFS 路线）、`/mapscan?r=`（重扫）、`/probe?x=&y=`（该点碰撞体明细）
 - 写/交互：`/enter?slot=1..3`、`/enterstatus`、`/screenshot`、`/snapshot`
 - 标题/内省：`/title` `/saves` `/objects?type=` `/object?type=&index=`

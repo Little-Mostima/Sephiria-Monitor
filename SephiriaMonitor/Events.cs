@@ -55,6 +55,7 @@ namespace SephiriaMonitor
                     evicted += drop;
                 }
             }
+            Combat.Observe(e);
             // Session.Emit adds seq/t/wall/scene to the object it receives; hand it a copy so a
             // concurrent /events reader never sees "Collection was modified".
             Dictionary<string, object> copy = new Dictionary<string, object>(e.Count + 4, StringComparer.Ordinal);

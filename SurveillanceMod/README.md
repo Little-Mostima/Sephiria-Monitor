@@ -52,7 +52,7 @@ agent ──MCP(stdio/JSON-RPC)──> server.mjs ──HTTP GET 127.0.0.1:47901
 - 改 `cordis.patch.yml` 会热加载：约 8 秒后 `Get-CimInstance Win32_Process` 能看到新 PID 的 `node.exe ...\server.mjs`，**不用重启 DSH**。
 - 只改 `server.mjs` 不会自动重启子进程 —— 想加载新代码，就动一下 `cordis.patch.yml`（例如加一行注释）。
 
-## 20 个工具
+## 22 个工具
 
 | 工具 | 桥路由 | 说明 |
 | --- | --- | --- |
@@ -67,6 +67,8 @@ agent ──MCP(stdio/JSON-RPC)──> server.mjs ──HTTP GET 127.0.0.1:47901
 | `sephiria_inventory` | `/inventory` | 背包/石板/仓库/属性，**请求时实时反射**（旧快照口径保留在 `/inventory_snapshot`）。 |
 | `sephiria_combos` | `/combos` | 连击/套装：流派、当前件数、已生效档位、每档授予的 status 列表。 |
 | `sephiria_statuses` | `/statuses` | buff / debuff / 孤立状态实例：层数、剩余时长比例、施加者。 |
+| `sephiria_combat` | `/combat?top=` | 本局聚合：命中率、失败原因分布、按来源/元素/受击者 top、玩家受击、掉落/金钱计数、60s 爆发曲线。**代替翻 /damage**。 |
+| `sephiria_runs` | `/runs` | 对局边界：inRun、seed、raceId、stages、generatedFloors、timeInWorld、sessionSerial、当前层；起止也会作为 `kind="run"` 事件出现。 |
 | `sephiria_progress` | `/progress` | 白名单 20 键：`run.floor.*` / `run.hard.*` / `run.seed` / `run.env.*`。 |
 | `sephiria_objects` | `/objects?type=&limit=` | 按类型列存活对象（如 ItemChest、MoneyChest、EPFG）。 |
 | `sephiria_object` | `/object?type=&index=&depth=` | 反射 dump 单个对象（depth 可到 3）。 |
@@ -101,7 +103,7 @@ agent ──MCP(stdio/JSON-RPC)──> server.mjs ──HTTP GET 127.0.0.1:47901
 & '<DSH_HOME>\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe' SurveillanceMod\selfcheck.mjs
 ```
 
-自检覆盖：initialize、tools/list（20 个工具齐全）、health、status、logs、databases、saves、snapshot 往返、未知工具被干净拒绝、**桥不可用时的明确提示**（会让第二个 server 指向死端口验证）。
+自检覆盖：initialize、tools/list（22 个工具齐全）、health、status、logs、databases、saves、snapshot 往返、未知工具被干净拒绝、**桥不可用时的明确提示**（会让第二个 server 指向死端口验证）。
 
 ## 故障排查
 

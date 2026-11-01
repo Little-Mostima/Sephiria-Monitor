@@ -36,11 +36,37 @@ namespace SephiriaMonitor
                 Directory.CreateDirectory(Path.Combine(root, "snapshots"));
                 eventWriter = NewWriter(Path.Combine(root, "events.jsonl"));
                 logWriter = NewWriter(Path.Combine(root, "logs.log"));
+                eventBytes = 0;
+                eventPersistBlocked = false;
+                PruneOldSessions(baseDir, KeepSessions);
             }
             catch (Exception ex)
             {
                 MonitorPlugin.LogError("session open failed: " + ex);
             }
+        }
+
+        private const int KeepSessions = 6;
+        private const long MaxEventBytes = 32L * 1024 * 1024;
+        private static long eventBytes;
+        private static bool eventPersistBlocked;
+
+        /// <summary>只保留最近 KeepSessions 个 out/session-* 目录；每个会话的 db/csv 导出约 1–2 MB，久留没意义。</summary>
+        private static void PruneOldSessions(string baseDir, int keep)
+        {
+            try
+            {
+                string outDir = Path.Combine(baseDir, "out");
+                if (!Directory.Exists(outDir)) return;
+                string[] dirs = Directory.GetDirectories(outDir, "session-*");
+                if (dirs.Length <= keep) return;
+                Array.Sort(dirs, StringComparer.Ordinal);
+                for (int i = 0; i < dirs.Length - keep; i++)
+                {
+                    try { Directory.Delete(dirs[i], true); } catch { }
+                }
+            }
+            catch { }
         }
 
         private static StreamWriter NewWriter(string path)
@@ -100,7 +126,19 @@ namespace SephiriaMonitor
                 string line = Json.Write(data);
                 lock (Gate)
                 {
+                    if (eventPersistBlocked)
+                    {
+                        return;
+                    }
                     eventWriter.WriteLine(line);
+                    eventBytes += line.Length + 1;
+                    if (eventBytes > MaxEventBytes)
+                    {
+                        // 单局事件文件封顶 32MB：再涨下去只会拖慢磁盘与阅读，内存环形缓冲照旧可用。
+                        eventPersistBlocked = true;
+                        try { eventWriter.Flush(); } catch { }
+                        MonitorPlugin.LogInfo("[Session] events.jsonl 达到 " + MaxEventBytes + " B 上限，后续事件只进内存");
+                    }
                     linesSinceFlush++;
                     if (linesSinceFlush >= 64)
                     {
