@@ -406,6 +406,22 @@ namespace SephiriaMonitor
                         return Live.Combos();
                     case "/statuses":
                         return Live.Statuses();
+                    case "/merchants":
+                        return MerchantOps.Merchants();
+                    case "/floors":
+                        return MerchantOps.Floors();
+                    case "/sample":
+                        return MainThreadPump.Run(delegate
+                        {
+                            return MerchantOps.Sample(Int(query, "n", 100), Int(query, "charms", 4), Int(query, "tablets", 2),
+                                Num(query, "ratio", 1.0f), Int(query, "seed", 0));
+                        }, 20000);
+                    case "/goto":
+                        return MerchantOps.Goto(Query(query, "floor", Query(query, "name", "")), Query(query, "to", ""));
+                    case "/tp":
+                        return MerchantOps.Teleport(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""), Num(query, "ox", 1.6f), Num(query, "oy", 0f));
+                    case "/shop":
+                        return MerchantOps.OpenShop(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""));
                     case "/progress":
                         return Filtered(new string[] { "run.floor", "run.hard", "run.seed", "run.env" });
                     case "/screenshot":
@@ -539,6 +555,23 @@ namespace SephiriaMonitor
         {
             string v;
             return q.TryGetValue(key, out v) ? v : fallback;
+        }
+
+        private static int Int(Dictionary<string, string> q, string key, int fallback)
+        {
+            int v;
+            return int.TryParse(Query(q, key, null), out v) ? v : fallback;
+        }
+
+        private static float Num(Dictionary<string, string> q, string key, float fallback)
+        {
+            string raw = Query(q, key, null);
+            float v;
+            if (raw != null && float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v))
+            {
+                return v;
+            }
+            return fallback;
         }
 
         private static string StateJson()

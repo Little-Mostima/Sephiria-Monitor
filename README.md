@@ -8,7 +8,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.10.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.11.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -18,7 +18,8 @@
 SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
   MonitorPlugin.cs        # 插件入口，版本号
   BridgeServer.cs         # 本地 HTTP 桥（GET 路由 + POST /mcp 入口）
-  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，11 个工具）
+  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，12 个工具）
+  MerchantOps.cs          # 商人/楼层操作：列表、传送、开店、货架抽样
   Live.cs                 # 实时读取（inventory / combos / statuses）
   Combat.cs               # 战斗事件在线聚合
   RunTracker.cs           # 对局边界（run start/end）
@@ -26,14 +27,14 @@ SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
   hooks.json              # mod 挂点目录（79 条，随 dll 一起部署）
 tools/
   mcp-stdio.mjs           # 可选：stdio → HTTP 代理（给只支持 stdio 的客户端）
-  selfcheck.mjs           # 端到端自检（14 项）
+  selfcheck.mjs           # 端到端自检（15 项）
 install.ps1               # 一键安装/升级
 ```
 
 `SurveillanceMod/`（原来的 Node MCP 服务器）**已经并入插件**，不再需要单独进程。0.10.0 起：
 
 - 插件启动即监听 `47901`，同时提供 GET 路由和 `POST /mcp`；
-- MCP 的 11 个工具在 C# 里实现，内部直接复用同一套路由函数；
+- MCP 的 12 个工具在 C# 里实现，内部直接复用同一套路由函数；
 - Node 只在**客户端只会说 stdio** 时用得上（`tools/mcp-stdio.mjs`，20 行逻辑，无依赖）。
 
 ---
@@ -109,8 +110,8 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.10.0
-node tools\selfcheck.mjs                            # 期望 14 passed, 0 failed
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.11.0
+node tools\selfcheck.mjs                            # 期望 15 passed, 0 failed
 ```
 
 BepInEx 控制台里应能看到 `[Info :SephiriaMonitor] bridge listening on http://127.0.0.1:47901/`。
@@ -160,7 +161,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 ---
 
-## 5. 十一个工具
+## 5. 十二个工具
 
 | 工具 | 作用 |
 | --- | --- |
@@ -174,6 +175,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | `sephiria_db` | 数据库 CSV：无参列表，`table/q/limit/offset` 读行 |
 | `sephiria_hooks` | mod 挂点目录（`q/area/kind/side/limit`），含真实调用点 |
 | `sephiria_save` | `action=slots`（存档槽）/`title`（标题状态）/`enter`（进档，轮询到 MainWorld） |
+| `sephiria_merchant` | **写操作**：`action=merchants` 列出商人+货架；`floors` 列出本局楼层及计划商人类型；`goto` 跳到指定楼层（`floor=` / `to=vendor`）；`tp` 传送到商人旁；`shop` 打开商店面板；`sample` 用真实配货算法抽样（不改游戏状态） |
 | `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
 同一个端口还提供 34 条只读 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
@@ -184,11 +186,13 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 | 版本 | 变更 |
 | --- | --- |
+| **0.11.0** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
 | **0.10.0** | **MCP 服务器并入插件**（`POST /mcp`，11 工具），删除独立 Node 服务器；`hooks.json` 随插件部署，79 条挂点 |
 | 0.9.2 | 工具层精简 23 → 11 个复合工具（brief/world/save/db 合并），README 合并为单份 |
 | 0.9.1 | `sephiria_hooks` + `hooks.json`；`content-item` 模板；`smoke.ps1` |
 | 0.9.0 | `/combat` 在线聚合、`/runs` 对局边界、会话只留 6 个、events.jsonl 32 MB 封顶 |
 | 0.8.0 | `/inventory` 改实时、新增 `/combos` `/statuses` `/inventory_snapshot` |
+| `/merchants` `/floors` `/goto` `/tp` `/shop` `/sample` | 商人列表/楼层列表/跳楼/传送/开店/配货抽样（后四个是写操作或重计算） |
 | 0.7.x | 初版：桥、事件流、数据库导出、MCP server（Node） |
 
 ---
@@ -230,7 +234,7 @@ MIT License.
 
 把下面**这一句**发给任意有终端权限的 AI（Claude Code / Codex / DSH 等），它会自己完成克隆、编译、部署、启动与自检：
 
-> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.10.0、运行 `node tools\selfcheck.mjs` 确认 14 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
+> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.11.0、运行 `node tools\selfcheck.mjs` 确认 15 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
 
 如果 AI 需要更明确的边界，可以再补一句：
 

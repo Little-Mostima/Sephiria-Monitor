@@ -155,6 +155,7 @@ namespace SephiriaMonitor
                 case "sephiria_health": text = Raw("/health"); break;
                 case "sephiria_brief": text = Brief(args); break;
                 case "sephiria_status": text = Status(args); break;
+                case "sephiria_merchant": text = Merchant(args); break;
                 case "sephiria_inventory": text = Raw("/inventory"); break;
                 case "sephiria_world": text = World(args); break;
                 case "sephiria_events": text = Events(args); break;
@@ -292,6 +293,48 @@ namespace SephiriaMonitor
                 default:
                     throw new ArgumentException("action must be slots|title|enter");
             }
+        }
+
+        private static string Merchant(JObject args)
+        {
+            string action = (Str(args, "action") ?? "merchants").ToLowerInvariant();
+            string route;
+            switch (action)
+            {
+                case "merchants":
+                    return Raw("/merchants");
+                case "floors":
+                    return Raw("/floors");
+                case "goto":
+                    route = "/goto";
+                    break;
+                case "sample":
+                    route = "/sample";
+                    break;
+                case "tp":
+                    route = "/tp";
+                    break;
+                case "shop":
+                    route = "/shop";
+                    break;
+                default:
+                    throw new ArgumentException("action must be merchants|floors|goto|tp|shop");
+            }
+            var query = new StringBuilder();
+            string index = Str(args, "index");
+            string name = Str(args, "name");
+            string to = Str(args, "to");
+            if (!string.IsNullOrEmpty(index)) query.Append("&index=").Append(Uri.EscapeDataString(index));
+            if (!string.IsNullOrEmpty(name)) query.Append("&name=").Append(Uri.EscapeDataString(name));
+            if (!string.IsNullOrEmpty(to)) query.Append("&to=").Append(Uri.EscapeDataString(to));
+            if (args["ox"] != null) query.Append("&ox=").Append(args["ox"].ToString());
+            if (args["oy"] != null) query.Append("&oy=").Append(args["oy"].ToString());
+            foreach (string extra in new[] { "n", "charms", "tablets", "ratio", "seed" })
+            {
+                if (args[extra] != null) query.Append("&").Append(extra).Append("=").Append(args[extra].ToString());
+            }
+            if (query.Length > 0) query[0] = '?';
+            return Raw(route + query);
         }
 
         // ---------------------------------------------------------------- local files
@@ -561,6 +604,18 @@ namespace SephiriaMonitor
                      {
                          ["action"] = Prop("string", "slots|title|enter (default slots)"),
                          ["slot"] = Prop("integer", "1-3 for action=enter")
+                     })),
+                Tool("sephiria_merchant",
+                     "Merchants and floors. action=merchants lists loaded merchants + shelves; floors lists the run's floors with planned merchant type; goto moves to a floor (floor=guid/name or to=vendor); tp teleports next to a merchant; shop opens its shop panel. goto/tp/shop are write ops.",
+                     Schema(new[] { "action", "index", "name", "to", "floor", "ox", "oy", "n", "charms", "tablets", "ratio", "seed" }, new JObject
+                     {
+                         ["action"] = Prop("string", "merchants|floors|goto|tp|shop (default merchants)"),
+                         ["floor"] = Prop("string", "floor guid or name substring for action=goto"),
+                         ["index"] = Prop("integer", "merchant index from action=merchants"),
+                         ["name"] = Prop("string", "name/socialID substring"),
+                         ["to"] = Prop("string", "vendor|union|small|potion (merchant type)"),
+                         ["ox"] = Prop("number", "teleport offset x from the merchant (default 1.6)"),
+                         ["oy"] = Prop("number", "teleport offset y (default 0)")
                      })),
                 Tool("sephiria_screenshot", "Fallback screenshot; prefer the JSON tools.", Schema())
             };
