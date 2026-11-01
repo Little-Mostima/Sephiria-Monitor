@@ -192,7 +192,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | 0.9.1 | `sephiria_hooks` + `hooks.json`；`content-item` 模板；`smoke.ps1` |
 | 0.9.0 | `/combat` 在线聚合、`/runs` 对局边界、会话只留 6 个、events.jsonl 32 MB 封顶 |
 | 0.8.0 | `/inventory` 改实时、新增 `/combos` `/statuses` `/inventory_snapshot` |
-| `/merchants` `/floors` `/goto` `/tp` `/shop` `/sample` | 商人列表/楼层列表/跳楼/传送/开店/配货抽样（后四个是写操作或重计算） |
+| `/merchants` `/floors` `/goto` `/tp` `/shop` `/sample` | 商人列表 / 楼层列表 / 跳楼（`hidden=1` 允许隐藏层）/ 传送（`index`/`name`/`to` 或绝对 `x,y`）/ 开店 / 配货抽样（后四个是写操作或重计算） |
 | 0.7.x | 初版：桥、事件流、数据库导出、MCP server（Node） |
 
 ---
