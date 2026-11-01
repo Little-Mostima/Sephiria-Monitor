@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using BepInEx;
@@ -11,7 +11,7 @@ namespace SephiriaMonitor
     public class MonitorPlugin : BaseUnityPlugin
     {
         public const string Guid = "com.surveillance.sephiriamonitor";
-        public const string Version = "0.9.2";
+        public const string Version = "0.10.0";
 
         public static MonitorPlugin Instance { get; private set; }
         public static string OutDir { get; private set; }

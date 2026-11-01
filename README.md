@@ -1,156 +1,182 @@
 # Sephiria Monitor
 
-给 [Sephiria](https://store.steampowered.com/app/2436940/)（Steam AppID `2436940`）做的**只读数据监听套件**：BepInEx 插件在游戏进程里采集状态与事件，零依赖的 MCP 服务器把数据交给 AI agent。
+**一个插件，既是只读监控，也是 MCP 服务器。**
 
-**作为辅助 Mods 开发的 Mods**：除「从标题界面加载一个存档」（`sephiria_save` 的 `enter` / `/enter`）外不改动游戏状态。
+装上它、把游戏跑起来，`http://127.0.0.1:47901` 就是一个本地只读数据源。任何 AI 客户端（Claude Desktop / Code、DSH、自写的 agent）都可以通过 **MCP** 或 **普通 GET** 读这里的游戏状态：当前楼层、角色属性、护符连击、伤害统计、事件流、数据库 CSV、存档槽、mod 挂点目录。
+
+项目目标不是"再做一个内存修改器"，而是**给 mod 作者和 agent 提供一份可信的运行时事实**：数值从游戏对象里现读，不是从缓存快照里翻旧值。
+
+- 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
+- 依赖：BepInEx 5.4.x (x64)
+- 版本：插件 **0.10.0**，协议 **MCP 2025-06-18**
+
+---
+
+## 1. 仓库结构
 
 ```
-游戏进程 ── BepInEx 插件 ──HTTP GET 127.0.0.1:47901──> MCP 服务器(stdio) ──> AI / 脚本
-                                    └─ 落盘：state.json / events.jsonl / floors/*.json / db/*.csv
+SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
+  MonitorPlugin.cs        # 插件入口，版本号
+  BridgeServer.cs         # 本地 HTTP 桥（GET 路由 + POST /mcp 入口）
+  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，11 个工具）
+  Live.cs                 # 实时读取（inventory / combos / statuses）
+  Combat.cs               # 战斗事件在线聚合
+  RunTracker.cs           # 对局边界（run start/end）
+  EventLog.cs / ...       # 事件、快照、楼层、数据库导出
+  hooks.json              # mod 挂点目录（79 条，随 dll 一起部署）
+tools/
+  mcp-stdio.mjs           # 可选：stdio → HTTP 代理（给只支持 stdio 的客户端）
+  selfcheck.mjs           # 端到端自检（14 项）
+install.ps1               # 一键安装/升级
 ```
 
-> 版本：插件 **0.9.2** / MCP **0.9.2**（游戏 1.1.1，Unity 6000.3.21f1，BepInEx 5.4.23 x64）
-> 只监听回环地址；MCP 暴露 **11 个复合工具**，桥暴露 **33 条 HTTP 路由**。
+`SurveillanceMod/`（原来的 Node MCP 服务器）**已经并入插件**，不再需要单独进程。0.10.0 起：
 
-## 能监听到什么
+- 插件启动即监听 `47901`，同时提供 GET 路由和 `POST /mcp`；
+- MCP 的 11 个工具在 C# 里实现，内部直接复用同一套路由函数；
+- Node 只在**客户端只会说 stdio** 时用得上（`tools/mcp-stdio.mjs`，20 行逻辑，无依赖）。
+
+---
+
+## 2. 能监听到什么
 
 | 类别 | 内容 |
-|---|---|
-| 即时状态 | 场景、楼层、坐标、速度/峰值、本层与累计行走、生命/法力/金币、等级/经验%/属性点、击杀数、单位数、敌对单位数、最近 24 个单位（名字/类型/坐标/hp/阵营） |
-| 人物细节 | 64 项自定义属性（攻击/元素/暴击/闪避/谈判/掉落…）、背包格子（id/数量/等级/预制体/旋转）、药水槽、石板与刻印、连击档位与生效状态、buff/debuff/孤立状态 |
-| 事件流 | 伤害（攻方/受方实例、是否致命）、死亡（杀手、是否玩家击杀）、经验、金钱、拾取、换层、场景切换、存档、对局开始/结束、值得注意的游戏提示 |
-| 战斗聚合 | 命中率、失败原因分布（绝对失败/闪避/格挡）、按伤害来源/元素/受击者聚合、玩家承伤、60 秒爆发曲线 —— 不必自己扫事件 |
-| 楼层 | 进层自动转储：整层瓦片 ASCII（墙/地/水/悬崖）+ 房间表（编号/网格/尺寸/接口/是否刷怪/房内单位）+ 楼梯/门/传送门坐标 |
-| 数据库 | 游戏 49 张数据表导出为 CSV（物品/武器/技能全表，含禁用条目，UTF-8 BOM） |
-| 挂点目录 | 62 条可用于 mod 的方法/事件：签名、`文件:行`、服务端/客户端、用途、已知坑、真实调用点 |
-| 存档 | 三个槽位是否存在、玩家名、最后保存时间、死亡次数 |
+| --- | --- |
+| 状态 | 场景、玩家 hp/mp/money/等级/坐标、单位数量、事件/日志计数、桥版本 |
+| 角色细节 | 64 项 `ECustomStat`（属性**实时**读取）、背包格子、石板与刻印、护符连击档位 |
+| 战斗 | 每次 `DamageInstance`（类型/元素/来源/暴击/结果）、击杀、死亡、掉落、拾金、经验；`/combat` 直接给命中率、失败分布、分来源聚合 |
+| 世界 | 当前楼层与 `FloorData`、楼层生成器内部结构（程序化房间拼图）、地图碰撞、全量单位 |
+| 运行时对象 | 任意类型按名枚举，或单个对象按 `depth` 反射展开（`/objects`、`/object`） |
+| 对局 | run 开始/结束边界、seed、raceId、stage 列表、每层进度 |
+| 数据 | 27 个数据库导出的 CSV（`out/session-*/db/*.csv`），按表/关键词查询 |
+| 存档 | 三个槽位的存在性、大小、修改时间、玩家名、死亡数（只读） |
+| mod 支持 | `hooks.json` 79 条挂点（签名+行号+真实调用点），`sephiria_hooks` 可按关键词/区域过滤 |
 
-## 仓库结构
+---
 
-| 路径 | 是什么 |
-|---|---|
-| `SephiriaMonitor/` | C# 插件（`netstandard2.1` / C# 9）。Harmony 补丁采集事件、导出 49 张数据库 CSV、起本地 HTTP 桥 |
-| `SurveillanceMod/` | 零依赖 Node ESM MCP 服务器（stdio）。把桥的端点映射成 11 个工具；`hooks.json` 是 62 条挂点目录 |
-| `install.ps1` | 一条命令：编译 → 停游戏 → 部署 dll → 校验哈希 → 拷 MCP 文件 |
-| `SurveillanceMod/selfcheck.mjs` | 端到端自检：拉起 MCP、`tools/list`、逐个调工具断言形状（12 项） |
-
-两个子目录原先各有一份 `README.md`，已合并进本文件，子目录不再单独维护文档。
-
-## 安装
-
-前置：游戏本体、**BepInEx 5.4.23 x64**（即 `Sephiria\winhttp.dll` 与 `Sephiria\BepInEx\core\BepInEx.dll` 存在）、Node 18+；只有从源码编译时才需要 .NET 8 SDK。
+## 3. 安装
 
 ```powershell
 git clone https://github.com/Little-Mostima/Sephiria-Monitor.git
 cd Sephiria-Monitor
 
-# 编译 + 部署（自动找 SDK；找不到会明确报错）
-.\install.ps1 -Build -StopGame -McpDir "$env:USERPROFILE\sephiria-mcp"
+# 从源码编译并安装（需要 .NET SDK 8）
+.\install.ps1 -Build -StopGame
+
+# 或者用仓库里已编译的 dll
+.\install.ps1 -StopGame
 ```
 
 | 参数 | 作用 |
-|---|---|
-| `-Build` | 先 `dotnet build -c Release` |
-| `-StopGame` | 部署前 `Stop-Process Sephiria`（dll 被映射锁住时必须） |
-| `-GameDir` | 游戏目录，默认 `D:\steam\steamapps\common\Sephiria` |
-| `-Dotnet` | 指定 `dotnet.exe`；否则依次试 `SEPHIRIA_DOTNET`、本仓库旁的 `_work\dotnet`、`%USERPROFILE%\.dotnet`、系统 |
-| `-McpDir` | 顺便把 `server.mjs` / `selfcheck.mjs` / `hooks.json` 拷到该目录 |
+| --- | --- |
+| `-Build` | 先 `dotnet build SephiriaMonitor -c Release` |
+| `-StopGame` | 替换 dll 前先停掉运行中的游戏（dll 被占用会失败） |
+| `-GameDir <path>` | 游戏根目录；缺省依次尝试注册表外的常见 Steam 路径 |
+| `-Dotnet <path>` | 指定带 SDK 的 dotnet（运行时-only 的装不了） |
 
-手动安装等价于：把 `SephiriaMonitor\bin\Release\SephiriaMonitor.dll` 放到
-`<游戏>\BepInEx\plugins\SephiriaMonitor\SephiriaMonitor.dll`，然后**启动游戏并进入存档**——插件只在 `MainWorld` 场景加载，标题画面不加载。
+装完启动游戏、**读到 MainWorld**（标题界面不加载数据库），桥就会起来。验证：
 
-## MCP 接入
+```powershell
+Invoke-RestMethod http://127.0.0.1:47901/health
+node tools\selfcheck.mjs          # 14 项端到端断言
+```
 
-任意 MCP 客户端（Claude Desktop、DSH、自写 stdio 客户端）：
+---
+
+## 4. MCP 接入
+
+### 4.1 直接走 HTTP（推荐）
+
+端点：`POST http://127.0.0.1:47901/mcp`，Content-Type `application/json`，返回 JSON（不是 SSE）。协议版本 `2025-06-18`。
+
+```bash
+curl -s -X POST http://127.0.0.1:47901/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+### 4.2 只支持 stdio 的客户端
+
+让它启动 `node tools/mcp-stdio.mjs`，由它把 stdio 转发到 `47901/mcp`：
 
 ```json
 {
   "mcpServers": {
     "sephiria": {
       "command": "node",
-      "args": ["D:\\path\\to\\SurveillanceMod\\server.mjs"],
-      "env": { "SEPHIRIA_BRIDGE": "http://127.0.0.1:47901" }
+      "args": ["D:\\AscensionMod\\_work\\repo\\tools\\mcp-stdio.mjs"]
     }
   }
 }
 ```
 
-桥在游戏进程起来 15–20 秒后可用；进档后 `/health` 的 `scene` 变成 `MainWorld`。
+DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环境变量 `SEPHIRIA_BRIDGE` 可改桥地址（默认 `http://127.0.0.1:47901`）。
 
-## 工具（11 个）
+---
 
-v0.9.2 把原先 23 个细粒度工具收敛成 11 个复合工具，减少「选错工具」的成本：
+## 5. 十一个工具
 
-| 工具 | 用途 | 底层 |
-|---|---|---|
-| `sephiria_brief` | **平常用这个**：健康 + 对局边界 + 玩家 + 进度 + 战斗聚合 + 连击 + 状态，一次给全 | `/health` `/runs` `/player` `/progress` `/combat` `/combos` `/statuses` |
-| `sephiria_status` | 场景 / 血量 / 金钱 / 单位数 / 计数器；`detail:true` 追加对局进度 | `/state` `/progress` |
-| `sephiria_inventory` | 实时背包：64 项属性、格子、药水槽、石板（0.8.0 起不再读缓存快照） | `/inventory` |
-| `sephiria_world` | 单位列表；`type` 列同类对象；`type`+`index` 反射字段；`map` 出碰撞图（仅地牢） | `/world` `/objects` `/object` `/map` `/rooms` `/probe` `/mappath` |
-| `sephiria_events` | 结构化事件流，`after` 增量、`kind` 过滤 | `/events` |
-| `sephiria_logs` | 进程内 Unity 日志（已滤掉 discord-ipc 噪音） | `/logs` |
-| `sephiria_db` | 49 张数据库 CSV：列表、子串过滤、分页 | 会话目录 `db\*.csv` |
-| `sephiria_hooks` | 62 条挂点目录：签名、`文件:行`、侧、用途、坑、调用点 | 本地 `hooks.json` |
-| `sephiria_save` | `slots` 存档槽 / `title` 标题屏 / `enter` 进档并等世界加载 | `/saves` `/title` `/enter` |
-| `sephiria_screenshot` | 兜底截图（数值不够用时才用） | `/screenshot` |
-| `sephiria_health` | 桥健康（版本、场景、会话目录、事件计数） | `/health` |
+| 工具 | 作用 |
+| --- | --- |
+| `sephiria_health` | 桥版本、场景、会话目录、计数器 |
+| `sephiria_brief` | **一次拿全**：health + runs + player + progress + combat 聚合 + combos + statuses（`top` 控制战斗行数） |
+| `sephiria_status` | 场景/血量/金钱/单位数；`detail:true` 追加 progress |
+| `sephiria_inventory` | **实时**属性（64 项）、背包、石板、刻印；`live:true` |
+| `sephiria_world` | 无参=全量单位；`type`=按类型枚举；`type`+`index`(+`depth`)=单对象反射；`map/x/y/r/rooms/path/probe`=地图 |
+| `sephiria_events` | 增量事件流（`after` 游标、`kind` 过滤）；damage/death/loot/floor/run/spawn… |
+| `sephiria_logs` | 游戏内日志（可按类型过滤） |
+| `sephiria_db` | 数据库 CSV：无参列表，`table/q/limit/offset` 读行 |
+| `sephiria_hooks` | mod 挂点目录（`q/area/kind/side/limit`），含真实调用点 |
+| `sephiria_save` | `action=slots`（存档槽）/`title`（标题状态）/`enter`（进档，轮询到 MainWorld） |
+| `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
-## HTTP 接口（33 条，脚本化时用）
+同一个端口还提供 34 条只读 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
 
-| 分组 | 端点 |
-|---|---|
-| 状态 | `/health` `/state` `/statefull` `/player` `/world` `/scene` `/run` `/progress` `/floor` |
-| 数据 | `/inventory` `/inventory_snapshot` `/combos` `/statuses` `/objects` `/object` `/events` `/damage` `/combat` `/runs` `/logs` `/session` `/snapshot` |
-| 地图 | `/map` `/mappath` `/path` `/probe` `/rooms` `/mapscan` |
-| 存档 | `/saves` `/title` `/enter` `/enterstatus` |
-| 其他 | `/screenshot` |
+---
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health
-Invoke-RestMethod "http://127.0.0.1:47901/combat?top=12"   # 本局聚合：命中率/失败原因/按来源·元素·受击者/60s 曲线
-Invoke-RestMethod http://127.0.0.1:47901/runs              # 对局边界：seed/stages/raceId/timeInWorld
-```
-
-## 版本记录
+## 6. 版本记录
 
 | 版本 | 变更 |
-|---|---|
-| **0.9.2** | MCP 工具 23 → **11** 个复合工具；`selfcheck.mjs` 重写为 12 项；`install.ps1` 支持 `-McpDir` |
-| 0.9.1 | `sephiria_hooks` + `hooks.json`（62 条挂点，含真实调用点） |
-| 0.9.0 | `/combat` 在线聚合、`/runs` 对局边界（`kind="run"` 事件）、会话只留 6 个、`events.jsonl` 32 MB 封顶 |
-| 0.8.0 | `/inventory` 改为实时计算、新增 `/combos` `/statuses` |
-| 0.7.x | 初版 |
+| --- | --- |
+| **0.10.0** | **MCP 服务器并入插件**（`POST /mcp`，11 工具），删除独立 Node 服务器；`hooks.json` 随插件部署，79 条挂点 |
+| 0.9.2 | 工具层精简 23 → 11 个复合工具（brief/world/save/db 合并），README 合并为单份 |
+| 0.9.1 | `sephiria_hooks` + `hooks.json`；`content-item` 模板；`smoke.ps1` |
+| 0.9.0 | `/combat` 在线聚合、`/runs` 对局边界、会话只留 6 个、events.jsonl 32 MB 封顶 |
+| 0.8.0 | `/inventory` 改实时、新增 `/combos` `/statuses` `/inventory_snapshot` |
+| 0.7.x | 初版：桥、事件流、数据库导出、MCP server（Node） |
 
-## 从源码编译
+---
+
+## 7. 从源码编译
+
+- 目标框架 `netstandard2.1`，`LangVersion 9.0`，需要 .NET SDK 8 构建（运行时不够）。
+- 引用游戏的程序集（`Sephiria_Data\Managed`）与 BepInEx、0Harmony、`Newtonsoft.Json`，全部 `Private=false`（不复制到输出）。
+- 游戏目录解析顺序：`SEPHIRIA_GAME_DIR` → `-p:GameDir=...` → 常见 Steam 路径；找不到会在构建时直接报错。
 
 ```powershell
 $env:SEPHIRIA_GAME_DIR = "D:\steam\steamapps\common\Sephiria"
-dotnet build .\SephiriaMonitor -c Release
+dotnet build SephiriaMonitor -c Release
 ```
 
-csproj 硬约束（与游戏程序集对齐）：`netstandard2.1`、`LangVersion=9.0`、`GenerateAssemblyInfo=false`、`DebugType=none`、`Deterministic=true`、`Nullable=disable`、`ImplicitUsings=disable`；引用游戏 `Managed` 下的 `Assembly-CSharp`、`UnityEngine(+CoreModule/IMGUIModule)`、`Unity.InputSystem`、`Mirror`、`BepInEx\core\0Harmony.dll`，全部 `<Private>false</Private>`。
+---
 
-## 自检与排错
-
-```powershell
-node .\SurveillanceMod\selfcheck.mjs        # 12 项全 PASS 才算出货；需要游戏进 MainWorld
-```
+## 8. 排错
 
 | 现象 | 原因 / 处理 |
-|---|---|
-| 桥拒绝连接 | 游戏没进主线世界，或插件没部署；先看 `/health`，再看 `%USERPROFILE%\AppData\LocalLow\TEAMHORAY\Sephiria\Player.log` |
-| 部署后行为没变 | dll 被映射锁住，`Copy-Item` 静默失败；先 `Stop-Process Sephiria`，部署后比对 `Get-FileHash` |
-| `/status` 404 | 该路径不存在，健康检查用 `/health` |
-| `/objects` 数量比预期少 | 按**精确类名**匹配，子类不计入（`Unit_Soldier` 与 `UnitAvatar` 分开） |
-| 地图是空的 | `/map` 只对地牢楼层有效，城镇没有 floor grid |
-| 数值过期 | 用 `/inventory`（0.8.0 起实时）；旧口径在 `/inventory_snapshot` |
+| --- | --- |
+| `47901` 连不上 | 游戏没跑，或没进 MainWorld（标题界面不启桥） |
+| `/health` 有响应但 DB 为空 | 还没进过对局；数据库在进入 MainWorld 时才加载导出 |
+| `tools/list` 掉连接 | 0.10.0 之前没有 `/mcp`；确认 dll 版本与 `/health` 的 `version` |
+| 部署 dll 失败 | 游戏占用文件 → `install.ps1 -StopGame` |
+| 属性看着不对 | 用 `sephiria_inventory`（实时）；旧快照在 `/inventory_snapshot` |
+| 模板/mod 不加载 | AddOns 与 Workshop 模组只在 **MainWorld** 加载，改完要重新进档 |
 
-## 边界与安全
+---
 
-- 只监听回环地址、无鉴权——本机任何进程都能读，不要在有不可信进程的机器上长期开着。
-- 除 `/enter` 外不改游戏状态；`/enter` 只是调用游戏自己的 `UI_TitleLobby.NetworkHost()`。
-- **不要把这个插件发到 Steam 创意工坊**：官方 ModGuard 审核会反编译 DLL，本地 HTTP 端点会被判风险；工坊只适合纯内容/本地化 mod，插件走 BepInEx 通道分发。
+## 9. 边界
 
-## 许可
+- 只读。唯一的写操作是 `/enter`（调用游戏自己的 `UI_TitleLobby.NetworkHost()` 进档），需要你明确要求才用。
+- 只监听 `127.0.0.1`，不对外网开放；请勿把它暴露到公网或打包进工坊内容。
+- 不含任何绕过、注入或修改游戏逻辑的代码；Harmony 只用于读取（`Postfix` 观测）。
 
-私有仓库，仅供自用与授权测试。Sephiria 及其资产版权归 TEAMHORAY 所有。
+MIT License.

@@ -132,7 +132,8 @@ namespace SephiriaMonitor
                     using (NetworkStream stream = client.GetStream())
                     {
                         string requestLine;
-                        Dictionary<string, string> headers = ReadHead(stream, out requestLine);
+                        byte[] leftover;
+                        Dictionary<string, string> headers = ReadHead(stream, out requestLine, out leftover);
                         if (requestLine == null)
                         {
                             return;
@@ -156,14 +157,42 @@ namespace SephiriaMonitor
                         }
                         Interlocked.Increment(ref requestCount);
                         string path = parts[1];
-                        string payload = MainThreadPump.Run(() => Router.Route(parts[0], path), 8000);
-                        byte[] bytes = Encoding.UTF8.GetBytes(payload);
-                        string head = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: " +
-                                      bytes.Length + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
-                        byte[] headBytes = Encoding.ASCII.GetBytes(head);
-                        stream.Write(headBytes, 0, headBytes.Length);
-                        stream.Write(bytes, 0, bytes.Length);
-                        stream.Flush();
+                        string method = parts[0] == null ? "GET" : parts[0].ToUpperInvariant();
+                        string routePath = path;
+
+                        byte[] body = null;
+                        if (contentLength > 0)
+                        {
+                            body = ReadBody(stream, leftover, contentLength);
+                        }
+
+                        if (method == "POST" && routePath.StartsWith("/mcp", StringComparison.Ordinal))
+                        {
+                            string rpc = body == null ? "" : Encoding.UTF8.GetString(body);
+                            string answer;
+                            try
+                            {
+                                answer = MainThreadPump.Run(() => McpServer.HandleBody(rpc), 60000);
+                            }
+                            catch (Exception mcpError)
+                            {
+                                LogMcpError(mcpError);
+                                answer = "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32603,\"message\":\"handler error (see mcp-error.log)\"}}";
+                            }
+                            if (answer == null) answer = "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32603,\"message\":\"no answer\"}}";
+                            if (answer.Length == 0)
+                            {
+                                byte[] only = Encoding.ASCII.GetBytes("HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                                stream.Write(only, 0, only.Length);
+                                stream.Flush();
+                                return;
+                            }
+                            WriteJson(stream, answer);
+                            return;
+                        }
+
+                        string payload = MainThreadPump.Run(() => Router.Route(method, routePath), 8000);
+                        WriteJson(stream, payload);
                     }
                 }
                 catch (System.IO.IOException)
@@ -183,9 +212,53 @@ namespace SephiriaMonitor
             }
         }
 
-        private static Dictionary<string, string> ReadHead(NetworkStream stream, out string requestLine)
+        private static void LogMcpError(Exception ex)
+        {
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(typeof(BridgeServer).Assembly.Location);
+                System.IO.File.AppendAllText(System.IO.Path.Combine(dir, "mcp-error.log"),
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + ex + "\n\n");
+            }
+            catch
+            {
+            }
+        }
+
+        private static void WriteJson(NetworkStream stream, string payload)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(payload ?? "");
+            string head = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: " +
+                          bytes.Length + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+            byte[] headBytes = Encoding.ASCII.GetBytes(head);
+            stream.Write(headBytes, 0, headBytes.Length);
+            stream.Write(bytes, 0, bytes.Length);
+            stream.Flush();
+        }
+
+        private static byte[] ReadBody(NetworkStream stream, byte[] leftover, int contentLength)
+        {
+            byte[] body = new byte[contentLength];
+            int have = 0;
+            if (leftover != null && leftover.Length > 0)
+            {
+                have = Math.Min(leftover.Length, contentLength);
+                Array.Copy(leftover, 0, body, 0, have);
+            }
+            while (have < contentLength)
+            {
+                int read = stream.Read(body, have, contentLength - have);
+                if (read <= 0) break;
+                have += read;
+            }
+            if (have < contentLength) Array.Resize(ref body, have);
+            return body;
+        }
+
+        private static Dictionary<string, string> ReadHead(NetworkStream stream, out string requestLine, out byte[] leftover)
         {
             requestLine = null;
+            leftover = null;
             MemoryStream buffer = new MemoryStream();
             byte[] chunk = new byte[2048];
             // No body is ever read here; leftover bytes after the header are discarded on purpose.
@@ -206,6 +279,13 @@ namespace SephiriaMonitor
                 }
             }
             string head = Encoding.ASCII.GetString(buffer.GetBuffer(), 0, headerEnd);
+            int bodyStart = headerEnd + 4;
+            int remaining = (int)buffer.Length - bodyStart;
+            if (remaining > 0)
+            {
+                leftover = new byte[remaining];
+                Array.Copy(buffer.GetBuffer(), bodyStart, leftover, 0, remaining);
+            }
             string[] lines = head.Split(new[] { "\r\n" }, StringSplitOptions.None);
             requestLine = lines.Length > 0 ? lines[0] : null;
             Dictionary<string, string> headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

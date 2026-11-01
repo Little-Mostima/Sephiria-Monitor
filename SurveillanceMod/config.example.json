@@ -1,1 +1,0 @@
-﻿{ "bridge": "http://127.0.0.1:47901", "timeoutMs": 10000, "slowTimeoutMs": 45000, "httpPort": 47902 }

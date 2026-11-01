@@ -1,7 +1,0 @@
-node_modules/
-npm-debug.log*
-config.json
-# 本地抓下来的数据样本
-*.jsonl
-*.csv
-out/

@@ -1,8 +1,8 @@
 {
- "schema": 2,
+ "schema": 1,
  "game": "Sephiria 1.1.1 (6000.3.21f1)",
  "generated": "2026-11-02",
- "note": "Machine-readable hook catalogue (schema 2: hooks + real call sites). Query with the sephiria_hooks MCP tool. Rebuild: _re/index/build-hooks.py",
+ "note": "Machine-readable hook catalogue generated from _re/modding/HOOKS.md. Query with the sephiria_hooks MCP tool (/hooks.json).",
  "fields": {
   "id": "stable id",
   "area": "lifecycle|data|combat|world|ui|save|net|antipattern",
@@ -15,7 +15,7 @@
   "pitfall": "known trap",
   "channels": "any|bepinex|addons|workshop"
  },
- "count": 62,
+ "count": 79,
  "hooks": [
   {
    "id": "boot.loader",
@@ -27,9 +27,7 @@
    "kind": "harmony",
    "use": "看 27 个 DB 初始化全序；最早期初始化",
    "pitfall": "此时多数 DB 还没 Initialize",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "boot.itemdb",
@@ -41,9 +39,7 @@
    "kind": "event",
    "use": "item DB 加载完的信号，注册/改 item 的首选时机",
    "pitfall": "只给信号；改条目要调 ItemDatabase.Register/Modify",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "boot.all",
@@ -55,9 +51,7 @@
    "kind": "event",
    "use": "所有 DB 就绪（注册依赖多 DB 的内容）",
    "pitfall": "此时玩家对象还没生成",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "boot.session",
@@ -69,9 +63,7 @@
    "kind": "event",
    "use": "区分新局/续档（true=读档）",
    "pitfall": "只在 server 侧；执行早于玩家 spawn",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "boot.player",
@@ -83,9 +75,7 @@
    "kind": "event",
    "use": "拿到玩家对象后加组件/改属性",
    "pitfall": "每名玩家各触发一次，重连也会触发",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "boot.floor",
@@ -97,9 +87,7 @@
    "kind": "event",
    "use": "楼层实例可用后改房间/道具",
    "pitfall": "FloorGenerator 可能仍在生成中",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "data.item.register",
@@ -111,30 +99,7 @@
    "kind": "api",
    "use": "注册新物品（先 CreateInstance<ItemEntity> 填字段）",
    "pitfall": "id 必须唯一；缺 prefab 无法掉落/使用",
-   "channels": "any",
-   "callerCount": 7,
-   "callers": [
-    {
-     "file": "GameDataLoader.cs",
-     "line": 16,
-     "code": "InternalMod.Register();"
-    },
-    {
-     "file": "CustomGameDatabase.cs",
-     "line": 130,
-     "code": "if (RaceDatabase.FindById(entity.race.id) != entity.race && !RaceDatabase.Register(entity.race))"
-    },
-    {
-     "file": "UnitDatabase.cs",
-     "line": 135,
-     "code": "AvatarSpawnDatabase.Register(entity);"
-    },
-    {
-     "file": "ModOptions.cs",
-     "line": 194,
-     "code": "return Register(new ModToggleOption(this, key, defaultValue, label, onChanged));"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "data.item.modify",
@@ -146,30 +111,7 @@
    "kind": "api",
    "use": "改现有物品字段",
    "pitfall": "改完影响所有引用它的界面/奖励池",
-   "channels": "any",
-   "callerCount": 6,
-   "callers": [
-    {
-     "file": "ItemDatabase.cs",
-     "line": 337,
-     "code": "Debug.LogError(string.Format(\"[{0}] Item Register: id {1} already exists, use Modify()\", \"HorayMod\", item.id));"
-    },
-    {
-     "file": "PassiveDatabase.cs",
-     "line": 43,
-     "code": "Debug.LogWarning(string.Format(\"[{0}] Passive Register: id {1} already exists, use Modify()\", \"HorayMod\", passive.id));"
-    },
-    {
-     "file": "MiracleDatabase.cs",
-     "line": 133,
-     "code": "Debug.LogWarning(\"[HorayMod] Miracle Register: '\" + component.id + \"' already exists, use Modify() instead\");"
-    },
-    {
-     "file": "WeaponDatabase.cs",
-     "line": 182,
-     "code": "Debug.LogWarning(string.Format(\"[{0}] Weapon Register: id {1} already exists, use Modify()\", \"HorayMod\", weapon.id));"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "data.weapon.register",
@@ -181,30 +123,7 @@
    "kind": "api",
    "use": "注册新武器",
    "pitfall": "必须给 mainWeaponPrefab，否则铁砧点不出来",
-   "channels": "any",
-   "callerCount": 7,
-   "callers": [
-    {
-     "file": "GameDataLoader.cs",
-     "line": 16,
-     "code": "InternalMod.Register();"
-    },
-    {
-     "file": "CustomGameDatabase.cs",
-     "line": 130,
-     "code": "if (RaceDatabase.FindById(entity.race.id) != entity.race && !RaceDatabase.Register(entity.race))"
-    },
-    {
-     "file": "UnitDatabase.cs",
-     "line": 135,
-     "code": "AvatarSpawnDatabase.Register(entity);"
-    },
-    {
-     "file": "ModOptions.cs",
-     "line": 194,
-     "code": "return Register(new ModToggleOption(this, key, defaultValue, label, onChanged));"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "data.status.register",
@@ -216,30 +135,7 @@
    "kind": "api",
    "use": "加属性状态；className=StatusInstance_Custom/<键> 即写 customStats，无需写类",
    "pitfall": "ID 不能是 CUSTOM/CUSTOMAMP；缺 entity 会返回 null",
-   "channels": "any",
-   "callerCount": 7,
-   "callers": [
-    {
-     "file": "GameDataLoader.cs",
-     "line": 16,
-     "code": "InternalMod.Register();"
-    },
-    {
-     "file": "CustomGameDatabase.cs",
-     "line": 130,
-     "code": "if (RaceDatabase.FindById(entity.race.id) != entity.race && !RaceDatabase.Register(entity.race))"
-    },
-    {
-     "file": "UnitDatabase.cs",
-     "line": 135,
-     "code": "AvatarSpawnDatabase.Register(entity);"
-    },
-    {
-     "file": "ModOptions.cs",
-     "line": 194,
-     "code": "return Register(new ModToggleOption(this, key, defaultValue, label, onChanged));"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "data.stat.custom",
@@ -251,9 +147,7 @@
    "kind": "api",
    "use": "自定义派生属性（依赖其他属性计算）",
    "pitfall": "需先 RegisterSpecialStatCategory",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "data.unit",
@@ -265,9 +159,7 @@
    "kind": "api",
    "use": "加怪/改刷怪池",
    "pitfall": "数值不在 DB，在 prefab 的 UnitAvatar 序列化字段",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "data.charm",
@@ -279,9 +171,7 @@
    "kind": "api",
    "use": "护符：ItemEntity(type=Charm)+prefab 上 Charm_Basic(或 Charm_StatusInstance 纯数据)",
    "pitfall": "122/313 护符是纯数据 Charm_StatusInstance；category 决定连击流派",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "combat.applydamage",
@@ -293,30 +183,7 @@
    "kind": "harmony",
    "use": "全局增伤/减伤/免疫/改判定",
    "pitfall": "返回值要合法（Success/Fail_Block/Fail_Dodge/Fail_Absolute）；先看 d.damageResult",
-   "channels": "any",
-   "callerCount": 133,
-   "callers": [
-    {
-     "file": "CharacterDebuff_FanaticFlame.cs",
-     "line": 21,
-     "code": "base.NetworkTarget.ApplyDamage(DamageInstance.GetDamage(null, \"Debuff_FanaticFlame\", base.NetworkTarget.transform.position, 4294967295L, 1f, EDamageType.Element"
-    },
-    {
-     "file": "CharacterDebuff_FanaticFlame.cs",
-     "line": 36,
-     "code": "base.NetworkTarget.ApplyDamage(DamageInstance.GetDamage(null, \"Debuff_FanaticFlame\", base.NetworkTarget.transform.position, 4294967295L, 1f, EDamageType.Element"
-    },
-    {
-     "file": "KillPlayer.cs",
-     "line": 53,
-     "code": "value.identity.GetComponent<PlayerAvatar>().ApplyDamage(DamageInstance.GetDamage(null, null, default(Vector3), 4294967295L, 10000f, EDamageType.Fall, EDamageFro"
-    },
-    {
-     "file": "WeaponAddon_Reflect.cs",
-     "line": 65,
-     "code": "unitAvatar.ApplyDamage(DamageInstance.GetDamage(avatar, \"Weapon_Reflect\", obj.damagePoint, 4294967295L, num2, EDamageType.Slice, EDamageFromType.None, Vector2.z"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.unit.applydamage",
@@ -328,30 +195,7 @@
    "kind": "harmony",
    "use": "按目标类型定制",
    "pitfall": "已被 override；用 Prefix/Postfix 只读更安全",
-   "channels": "any",
-   "callerCount": 133,
-   "callers": [
-    {
-     "file": "UnitAvatar.cs",
-     "line": 3277,
-     "code": "unitAvatar.ApplyDamage(damage3);"
-    },
-    {
-     "file": "UI_DevCommandlinePanel.cs",
-     "line": 862,
-     "code": "playerUnitAvatar.ApplyDamage(damage);"
-    },
-    {
-     "file": "CharacterDebuff_FanaticFlame.cs",
-     "line": 21,
-     "code": "base.NetworkTarget.ApplyDamage(DamageInstance.GetDamage(null, \"Debuff_FanaticFlame\", base.NetworkTarget.transform.position, 4294967295L, 1f, EDamageType.Element"
-    },
-    {
-     "file": "CharacterDebuff_FanaticFlame.cs",
-     "line": 36,
-     "code": "base.NetworkTarget.ApplyDamage(DamageInstance.GetDamage(null, \"Debuff_FanaticFlame\", base.NetworkTarget.transform.position, 4294967295L, 1f, EDamageType.Element"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.send",
@@ -363,15 +207,7 @@
    "kind": "harmony",
    "use": "拿最终伤害值的唯一收口",
    "pitfall": "每次 DamageInstance 都走，务必极轻",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "UnitAvatar.cs",
-     "line": 3129,
-     "code": "CombatManager.Instance.SendCreatureApplyDamage(this, damage);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.events",
@@ -383,9 +219,7 @@
    "kind": "event",
    "use": "事件式订阅，不改原逻辑",
    "pitfall": "与会话生命周期绑定，换场景/重开要退订",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "combat.dmg.create",
@@ -397,30 +231,7 @@
    "kind": "harmony",
    "use": "构造伤害时插自定义倍率",
    "pitfall": "对象池复用，别长期持有引用",
-   "channels": "any",
-   "callerCount": 135,
-   "callers": [
-    {
-     "file": "CharacterDebuff_FanaticFlame.cs",
-     "line": 21,
-     "code": "base.NetworkTarget.ApplyDamage(DamageInstance.GetDamage(null, \"Debuff_FanaticFlame\", base.NetworkTarget.transform.position, 4294967295L, 1f, EDamageType.Element"
-    },
-    {
-     "file": "CharacterDebuff_FanaticFlame.cs",
-     "line": 36,
-     "code": "base.NetworkTarget.ApplyDamage(DamageInstance.GetDamage(null, \"Debuff_FanaticFlame\", base.NetworkTarget.transform.position, 4294967295L, 1f, EDamageType.Element"
-    },
-    {
-     "file": "CharacterDebuff_ChimDamage.cs",
-     "line": 37,
-     "code": "DamageInstance damage = DamageInstance.GetDamage(base.NetworkAttacker, damageId, base.NetworkTarget.transform.position, 4294967295L, num, EDamageType.ElementalE"
-    },
-    {
-     "file": "FlameSwordReturn.cs",
-     "line": 40,
-     "code": "DamageInstance damage2 = DamageInstance.GetDamage(avatar, \"FlameSwordReturn\", combatBehaviour.transform.position, avatar.GetHostileFactionLayers(EDamageFromType"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.dmg.flag",
@@ -432,15 +243,7 @@
    "kind": "harmony",
    "use": "给单次伤害打标记供后续判断",
    "pitfall": "只在这次伤害生命周期有效",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "UnitAvatar.cs",
-     "line": 2811,
-     "code": "damage.AddFlag(\"USE_ABSOLUTEEVASION_STAT\");"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.proj",
@@ -452,30 +255,7 @@
    "kind": "harmony",
    "use": "改普攻弹道/多重/追加弹",
    "pitfall": "parameter 决定用哪套 basicComboAttacks[]",
-   "channels": "any",
-   "callerCount": 4,
-   "callers": [
-    {
-     "file": "WeaponSimple.cs",
-     "line": 1151,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void WeaponSimple::CreateBasicAttackProjectile(System.Int32,UnityEngine.Vector3,System.Collections.Generic.List`1<Co"
-    },
-    {
-     "file": "WeaponAnimationEvent.cs",
-     "line": 68,
-     "code": "receiver.CreateBasicAttackProjectile(intValue);"
-    },
-    {
-     "file": "WeaponControllerSimple.cs",
-     "line": 1041,
-     "code": "currentWeapon.CreateBasicAttackProjectile(idx, attackDirection, basicAttackSharedTargetList, 1f, mpConsumedAttackTriggerFromAnimationValue, basicAttackParameter"
-    },
-    {
-     "file": "WeaponControllerSimple.cs",
-     "line": 1051,
-     "code": "currentWeapon.CreateBasicAttackProjectile(idx, direction, basicAttackSharedTargetList, 1f, mpConsumedAttackTriggerFromAnimationValue, parameter);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.proj.manual",
@@ -487,20 +267,7 @@
    "kind": "harmony",
    "use": "完全自己造一次攻击",
    "pitfall": "sharedTarget 去重要自己算",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "WeaponSimple.cs",
-     "line": 1228,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void WeaponSimple::CreateBasicAttackProjectileFullyManual(NewWeaponFireData,System.Int32,UnityEngine.Vector3,UnityEn"
-    },
-    {
-     "file": "WeaponControllerSimple.cs",
-     "line": 1061,
-     "code": "currentWeapon.CreateBasicAttackProjectileFullyManual(data, idx, shoulder.swingPoint.position, direction, basicAttackSharedTargetList, 1f, mpConsumed);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.onbasic",
@@ -512,9 +279,7 @@
    "kind": "harmony",
    "use": "命中后加附带元素/插件",
    "pitfall": "只对普攻路径生效",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "combat.swing",
@@ -526,20 +291,7 @@
    "kind": "harmony",
    "use": "拦截/替换整段挥砍",
    "pitfall": "由动画事件驱动，不点鼠标也会触发",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "WeaponSimple_Bow.cs",
-     "line": 59,
-     "code": "base.Networkowner.CreateBasicAttackSwing(0);"
-    },
-    {
-     "file": "WeaponControlAnimator.cs",
-     "line": 114,
-     "code": "weaponControllerSimple.CreateBasicAttackSwing(idx);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.melee",
@@ -551,30 +303,7 @@
    "kind": "harmony",
    "use": "近战碰撞层定制（多段/穿透）",
    "pitfall": "attackedInSwing 已去重，别重复结算",
-   "channels": "any",
-   "callerCount": 33,
-   "callers": [
-    {
-     "file": "UnitAI_PoisonDemon.cs",
-     "line": 23,
-     "code": "poisonDemon.Attack();"
-    },
-    {
-     "file": "UnitAI_SpikeEye.cs",
-     "line": 24,
-     "code": "spikeEye.Attack();"
-    },
-    {
-     "file": "UnitAI_EyeDemon.cs",
-     "line": 25,
-     "code": "eyeDemon.Attack();"
-    },
-    {
-     "file": "UnitAI_OinkTotem.cs",
-     "line": 30,
-     "code": "totem.Attack();"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.crit",
@@ -586,9 +315,7 @@
    "kind": "api",
    "use": "改暴击（面板 v/100 = 百分点）",
    "pitfall": "v<-10000 时界面显示 '-'",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "combat.evasion",
@@ -600,20 +327,7 @@
    "kind": "api",
    "use": "读闪避真实百分比（100*ln(v/6200+1)*0.8）",
    "pitfall": "受 EVASIONRATEREDUCTION 修正",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "UnitAvatar.cs",
-     "line": 2786,
-     "code": "float num4 = GetEvasionChancePercent();"
-    },
-    {
-     "file": "AvatarStatsHooker.cs",
-     "line": 304,
-     "code": "float evasionChancePercent = unitAvatar.GetEvasionChancePercent();"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.defense",
@@ -625,25 +339,7 @@
    "kind": "api",
    "use": "防御减伤公式（dmg*ln(def/40+1)*0.445）",
    "pitfall": "负防御走 dmg*def/100",
-   "channels": "any",
-   "callerCount": 3,
-   "callers": [
-    {
-     "file": "UnitAvatar.cs",
-     "line": 2534,
-     "code": "num2 = GetDamageReduction(finalDamage, num);"
-    },
-    {
-     "file": "UnitAvatar.cs",
-     "line": 2970,
-     "code": "float damageReduction = GetDamageReduction(1f, customStat);"
-    },
-    {
-     "file": "AvatarStatsHooker.cs",
-     "line": 273,
-     "code": "float damageReduction = UnitAvatar.GetDamageReduction(100f, customStat10);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.drop",
@@ -655,15 +351,7 @@
    "kind": "harmony",
    "use": "改掉落与经验",
    "pitfall": "随机源 new System.Random(RandomID)，同怪同结果；PROLIFERATE 会压经验",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "MolePrisonerAsProp.cs",
-     "line": 233,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void MolePrisonerAsProp::DropEXP(System.Int32)' called when server was not active\");"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.rarity",
@@ -675,30 +363,7 @@
    "kind": "api",
    "use": "改稀有度分布（默认 Common57/Uncommon20/Rare20/Legend3）",
    "pitfall": "影响奖励池/商店/石板",
-   "channels": "any",
-   "callerCount": 8,
-   "callers": [
-    {
-     "file": "PocketDimensionShop.cs",
-     "line": 156,
-     "code": "EItemRarity randomRarity = ItemDatabase.GetRandomRarity(random, 0.54f, 0.24f, 0.02f);"
-    },
-    {
-     "file": "PocketDimensionShop.cs",
-     "line": 189,
-     "code": "EItemRarity randomRarity2 = ItemDatabase.GetRandomRarity(random, 0.54f, 0.24f, 0.02f);"
-    },
-    {
-     "file": "Miracle.cs",
-     "line": 252,
-     "code": "EItemRarity eItemRarity = ItemDatabase.GetRandomRarity(random, uncommon, rare, legend);"
-    },
-    {
-     "file": "Sephirite.cs",
-     "line": 586,
-     "code": "return ItemDatabase.GetRandomRarity(rand, uncommon, rare, legend);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.shop",
@@ -710,20 +375,7 @@
    "kind": "harmony",
    "use": "改价格/免单/回收",
    "pitfall": "价格=ItemDatabase.GetItemBuyPrice(entity, shop.Negotiation, buyer.Negotiation)",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "UI_CharacterStatusPanel.cs",
-     "line": 2276,
-     "code": "UIManager.Instance.GetElement<UI_ShopPanel>().BuyFromShop(currentPickedUp.X, currentPickedUp.Y, icon.X, icon.Y);"
-    },
-    {
-     "file": "UI_ShopPanel.cs",
-     "line": 628,
-     "code": "BuyerCharacter.BuyFromShop(ShopCharacter, Shop, shopX, shopY, buyerX, buyerY);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "combat.level",
@@ -735,30 +387,7 @@
    "kind": "harmony",
    "use": "改升级曲线",
    "pitfall": "statPerLevel=4、levelUpHealPercent=5 是字段，直接改更省",
-   "channels": "any",
-   "callerCount": 6,
-   "callers": [
-    {
-     "file": "LevelController.cs",
-     "line": 179,
-     "code": "AbilityController.AddExp(exp);"
-    },
-    {
-     "file": "Exp.cs",
-     "line": 94,
-     "code": "component.AddExp(amount);"
-    },
-    {
-     "file": "FarmAbilityController.cs",
-     "line": 202,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void FarmAbilityController::AddExp(System.Int32)' called when server was not active\");"
-    },
-    {
-     "file": "MagicFountain.cs",
-     "line": 681,
-     "code": "component.AddExp(amount);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.newgame",
@@ -770,9 +399,7 @@
    "kind": "harmony",
    "use": "开局注入（raceId/种子/初始物品）",
    "pitfall": "章节→raceId 决策链在此，改错会加载错地图",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "world.restart",
@@ -784,30 +411,7 @@
    "kind": "harmony",
    "use": "重开/死亡流程",
    "pitfall": "会清背包、重置金钱",
-   "channels": "any",
-   "callerCount": 11,
-   "callers": [
-    {
-     "file": "UI_DestinyBookPanel.cs",
-     "line": 8,
-     "code": "(NetworkManager.singleton as HorayNetworkManager).RestartGame();"
-    },
-    {
-     "file": "CutSceneTimelineAnimator.cs",
-     "line": 16,
-     "code": "(NetworkManager.singleton as HorayNetworkManager).RestartGame();"
-    },
-    {
-     "file": "CutSceneNewGameNode.cs",
-     "line": 23,
-     "code": "(NetworkManager.singleton as HorayNetworkManager).RestartGame();"
-    },
-    {
-     "file": "FunctionNode_CustomScript.cs",
-     "line": 103,
-     "code": "horayNetworkManager.RestartGame(firstDeath: false, result2);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.loaddungeon",
@@ -819,20 +423,7 @@
    "kind": "harmony",
    "use": "一次性重建整局楼层",
    "pitfall": "内部读大量存档键，改输入比改它安全",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "HorayNetworkManager.cs",
-     "line": 1000,
-     "code": "DungeonManager.Instance.LoadDungeon();"
-    },
-    {
-     "file": "DungeonManager.cs",
-     "line": 1288,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void DungeonManager::LoadDungeon()' called when server was not active\");"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.stage",
@@ -844,25 +435,7 @@
    "kind": "harmony",
    "use": "控制进哪个舞台",
    "pitfall": "必须走 server 侧，否则客户端不同步",
-   "channels": "any",
-   "callerCount": 3,
-   "callers": [
-    {
-     "file": "UI_TeleportButton.cs",
-     "line": 21,
-     "code": "DungeonManager.Instance.LoadStageAndMove(stage.name);"
-    },
-    {
-     "file": "HorayNetworkManager.cs",
-     "line": 1137,
-     "code": "DungeonManager.Instance.LoadStageAndMove(text);"
-    },
-    {
-     "file": "PlayerAvatar.cs",
-     "line": 1679,
-     "code": "DungeonManager.Instance.LoadStageAndMove(stageName);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.floor",
@@ -874,30 +447,7 @@
    "kind": "harmony",
    "use": "控制楼层跳转",
    "pitfall": "MoveFloor 是 server 入口，客户端只跑 Local",
-   "channels": "any",
-   "callerCount": 28,
-   "callers": [
-    {
-     "file": "CutSceneTimelineAnimator_GoToFuture.cs",
-     "line": 12,
-     "code": "DungeonManager.Instance.MoveFloor(GameCamera.Instance.Observer, floorData.guid, spawnPoint, 0);"
-    },
-    {
-     "file": "CutSceneTimelineAnimator.cs",
-     "line": 23,
-     "code": "DungeonManager.Instance.MoveFloor(GameCamera.Instance.Observer, floorData.guid, spawnPointID, 0);"
-    },
-    {
-     "file": "CutSceneTeleportNode.cs",
-     "line": 28,
-     "code": "DungeonManager.Instance.MoveFloor(GameCamera.Instance.Observer, findFloor.guid, spawnPointID, 0, recordHistory, allowSave, keepPrevFloor);"
-    },
-    {
-     "file": "TrainingSchoolLeaveDoor.cs",
-     "line": 36,
-     "code": "DungeonManager.Instance.MoveFloor(component, floorData.guid, spawnPointId, 0);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.flooralloc",
@@ -909,15 +459,7 @@
    "kind": "harmony",
    "use": "抓/改楼层实例",
    "pitfall": "分配完触发 OnFloorAllocated*",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "DungeonManager.cs",
-     "line": 2101,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void DungeonManager::FloorAlloc(System.String)' called when server was not active\");"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.generate",
@@ -929,15 +471,7 @@
    "kind": "harmony",
    "use": "生成后改房间/道具",
    "pitfall": "协程，别在 Prefix 里阻塞",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "FloorGenerator.cs",
-     "line": 402,
-     "code": "StartCoroutine(Generate());"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.prop",
@@ -949,30 +483,7 @@
    "kind": "harmony",
    "use": "拦截道具生成",
    "pitfall": "需要 IXml 解析的出参；prop 定义见 817 个房间 XML",
-   "channels": "any",
-   "callerCount": 5,
-   "callers": [
-    {
-     "file": "ScarecrowAutoSpawner.cs",
-     "line": 91,
-     "code": "Debug.LogWarning(\"[Server] function 'System.Void ScarecrowAutoSpawner::CreateProp(UnityEngine.Vector3)' called when server was not active\");"
-    },
-    {
-     "file": "TileFloorGenerator.cs",
-     "line": 197,
-     "code": "return CreateProp(randomID, prop, position, localScale, options, null);"
-    },
-    {
-     "file": "LibraryFloorGenerator.cs",
-     "line": 1463,
-     "code": "GameObject gameObject = CreateProp(propRand.Next(), propEntity, base.transform.position + vector + vector3Int, Vector3.one, options);"
-    },
-    {
-     "file": "EnhancedProceduralFloorGenerator.cs",
-     "line": 1593,
-     "code": "GameObject gameObject = CreateProp(propRandom.Next(), propEntity, base.transform.position + vector3 + vector, Vector3.one, options);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.rooms",
@@ -984,9 +495,7 @@
    "kind": "api",
    "use": "改房间池（程序化楼层=拼 XML 房间）",
    "pitfall": "房间来自 Resources/Rooms/**/*.xml",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "world.stage.entity",
@@ -998,20 +507,7 @@
    "kind": "harmony",
    "use": "改「一个舞台生成什么楼层」",
    "pitfall": "firstFloor 是 prefab，换它=换生成器类型",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "DungeonManager.cs",
-     "line": 1334,
-     "code": "FloorData[] array = raceEntity.lobbyStage.GenerateStage(this, stageSeedRand.Next(), stageOrder++, createMiracle: true, createAnvil: true, raceEntity.enhancedDis"
-    },
-    {
-     "file": "DungeonManager.cs",
-     "line": 1742,
-     "code": "FloorData[] array = stageEntity.GenerateStage(this, stageSeedRand.Next(), stageOrder++, int2 == 0, num < PlayerSpawner.MultiplayerList.Count, enhancedDisturbanc"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.hardmode",
@@ -1023,20 +519,7 @@
    "kind": "harmony",
    "use": "改难度词条（写入 hardModeEnvironment）",
    "pitfall": "读取端 69 处；难度点数按 stepIncreasePerLevel 逐级累加",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "UI_HardModePanel.cs",
-     "line": 465,
-     "code": "HardModeManager.Instance.ActivateHardModeOnServer(DungeonManager.Instance.raceId);"
-    },
-    {
-     "file": "HorayNetworkManager.cs",
-     "line": 1020,
-     "code": "HardModeManager.Instance.ActivateHardModeOnServer(num);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.merchant",
@@ -1048,30 +531,7 @@
    "kind": "harmony",
    "use": "改 NPC/商人配货",
    "pitfall": "Vendor 货架 100% 含 1 件 isExtraDamage 护符（全库仅 2 件）",
-   "channels": "any",
-   "callerCount": 13,
-   "callers": [
-    {
-     "file": "Desert_FirstEvent.cs",
-     "line": 72,
-     "code": "component2.SetSocialID(rabbitNPC.name, rabbitNPC.aName.key, rabbitNPC.personality, rabbitNPC.alignment, roleName, rabbitNPC.proceduralMerchantType, rabbitNPC.st"
-    },
-    {
-     "file": "Grasstown_KenneyRewardTalker.cs",
-     "line": 89,
-     "code": "component2.SetSocialID(rabbitNPC.name, rabbitNPC.aName.key, rabbitNPC.personality, rabbitNPC.alignment, roleName, rabbitNPC.proceduralMerchantType, rabbitNPC.st"
-    },
-    {
-     "file": "Charm_LeadNPC.cs",
-     "line": 145,
-     "code": "component6.SetSocialID(npcSocialID.name, npcSocialID.aName.key, npcSocialID.personality, npcSocialID.alignment, npcSocialID.npcRole.name, npcSocialID.procedural"
-    },
-    {
-     "file": "DeepCave_EndEvent.cs",
-     "line": 156,
-     "code": "component2.SetSocialID(npc.name, npc.aName.key, npc.personality, npc.alignment, npc.npcRole.name, npc.proceduralMerchantType, npc.startingMoney, npc.startingIte"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "world.trading",
@@ -1083,9 +543,7 @@
    "kind": "harmony",
    "use": "改商店挑选规则",
    "pitfall": "候选=全队已解锁，过滤 isDual/isAdvanced/cannotBeReward",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "world.switch",
@@ -1097,30 +555,7 @@
    "kind": "api",
    "use": "触发剧情开关",
    "pitfall": "命运开关会写存档，测试完要还原",
-   "channels": "any",
-   "callerCount": 41,
-   "callers": [
-    {
-     "file": "SwitchControl.cs",
-     "line": 12,
-     "code": "SwitchManager.SetSwitch(switchName, targetValue);"
-    },
-    {
-     "file": "FunctionNode_SetSwitch.cs",
-     "line": 23,
-     "code": "SwitchManager.SetSwitch(switchName, inputValue);"
-    },
-    {
-     "file": "ChuimsaeForKen.cs",
-     "line": 23,
-     "code": "SwitchManager.SetSwitch(\"Attack_PlayerHouse\", value: false);"
-    },
-    {
-     "file": "CutSceneSetSwitchNode.cs",
-     "line": 24,
-     "code": "SwitchManager.SetSwitch(switchName, switchValue);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "ui.get",
@@ -1132,9 +567,7 @@
    "kind": "api",
    "use": "取已注册面板实例",
    "pitfall": "面板懒加载：没打开过取不到（uiElementsByTypename 实测 41 项）",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "ui.register",
@@ -1146,15 +579,7 @@
    "kind": "harmony",
    "use": "自建面板注册",
    "pitfall": "internal，只能 Harmony 或反射",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "UI_ItemInteractionPanel.cs",
-     "line": 51,
-     "code": "manager.RegisterRuntimeElement(uI_ItemInteractionPanel, element2.ParentRoot);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "ui.widgets",
@@ -1166,9 +591,7 @@
    "kind": "api",
    "use": "拿官方控件工厂做二级页/自定义控件",
    "pitfall": "UI 尚未就绪时返回 false",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "ui.dialogue",
@@ -1180,20 +603,7 @@
    "kind": "api",
    "use": "加剧情对话",
    "pitfall": "回调要判 session.IsCurrent（pageVersion 防过期点击）",
-   "channels": "any",
-   "callerCount": 2,
-   "callers": [
-    {
-     "file": "HorayModAPI.cs",
-     "line": 592,
-     "code": "return TryShowDialogue(anchor, page, out session, null);"
-    },
-    {
-     "file": "HorayModAPI.cs",
-     "line": 597,
-     "code": "return TryShowDialogue(anchor, page, out session, offset, null, focusCamera: true);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "ui.input",
@@ -1205,9 +615,7 @@
    "kind": "api",
    "use": "加自己的快捷键（读 InputActionReference）",
    "pitfall": "全工程 0 处 KeyCode；action 名见 assets/input-bindings.md",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "save.save",
@@ -1219,30 +627,7 @@
    "kind": "harmony",
    "use": "存档前后改数据",
    "pitfall": "订阅 OnSaveBegin/OnSaveEnd 更稳",
-   "channels": "any",
-   "callerCount": 168,
-   "callers": [
-    {
-     "file": "SaveManager.cs",
-     "line": 242,
-     "code": "copiedCurrent.Save();"
-    },
-    {
-     "file": "SaveManager.cs",
-     "line": 246,
-     "code": "copiedCurrentRun.Save();"
-    },
-    {
-     "file": "OpenEarlyAccessEndPopup.cs",
-     "line": 14,
-     "code": "SaveManager.Save(saveCurrent: true, saveCurrentRun: false);"
-    },
-    {
-     "file": "CutSceneSaveNode.cs",
-     "line": 16,
-     "code": "SaveManager.Save(saveCurrent: true, saveCurrentRun: false);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "save.load",
@@ -1254,30 +639,7 @@
    "kind": "harmony",
    "use": "读档注入",
    "pitfall": "ApplyPostLoadSaveFixes() 之后才稳定",
-   "channels": "any",
-   "callerCount": 43,
-   "callers": [
-    {
-     "file": "SaveManager.cs",
-     "line": 53,
-     "code": "bool flag = saveData.Load(fileName);"
-    },
-    {
-     "file": "SaveManager.cs",
-     "line": 71,
-     "code": "bool flag = saveData.Load(fileName + \"TMP\");"
-    },
-    {
-     "file": "FastGameStarter.cs",
-     "line": 13,
-     "code": "if (!SaveManager.Load(defaultSlotName))"
-    },
-    {
-     "file": "UI_RunHistoryPanel.cs",
-     "line": 51,
-     "code": "Show(RunHistoryStore.Load(SaveManager.Binded));"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "save.keys",
@@ -1289,9 +651,7 @@
    "kind": "api",
    "use": "读写存档键（局内状态在 CurrentRun/TMP）",
    "pitfall": "键族见 assets/SAVEKEYS.md；自用键加前缀",
-   "channels": "any",
-   "callerCount": 0,
-   "callers": []
+   "channels": "any"
   },
   {
    "id": "loc.merge",
@@ -1303,15 +663,7 @@
    "kind": "api",
    "use": "加语言/文本",
    "pitfall": "三条通道：StreamingAssets、模组 localization 模块、本地 mods",
-   "channels": "any",
-   "callerCount": 1,
-   "callers": [
-    {
-     "file": "UI_LanguagePanel.cs",
-     "line": 68,
-     "code": "uI_LanguageButton.SetLanguage(this, fileNameWithoutExtension, value, value2);"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "net.prefab",
@@ -1323,30 +675,7 @@
    "kind": "api",
    "use": "注册新网络 prefab",
    "pitfall": "不注册则 NetworkServer.Spawn 客户端找不到",
-   "channels": "any",
-   "callerCount": 4,
-   "callers": [
-    {
-     "file": "HorayModAPI.cs",
-     "line": 383,
-     "code": "Debug.LogError(\"[HorayMod] RegisterNetworkPrefab: '\" + prefab.name + \"'의 assetId가 0입니다. 에셋 프리팹은 에디터에서 한 번 저장하고, 런타임 복제 프리팹은 RegisterNetworkPrefab(prefab, stable"
-    },
-    {
-     "file": "HorayModAPI.cs",
-     "line": 389,
-     "code": "Debug.LogError(string.Format(\"[{0}] RegisterNetworkPrefab: '{1}'의 assetId({2:X8})가 이미 등록된 '{3}'과 같습니다. 템플릿을 복제한 프리팹이면 RegisterNetworkPrefab(prefab, stableKey)로 "
-    },
-    {
-     "file": "HorayModAPI.cs",
-     "line": 437,
-     "code": "return RegisterNetworkPrefab(prefab);"
-    },
-    {
-     "file": "HorayModAPI.cs",
-     "line": 488,
-     "code": "if (RegisterNetworkPrefab(prefab))"
-    }
-   ]
+   "channels": "any"
   },
   {
    "id": "net.sync",
@@ -1430,6 +759,210 @@
    "kind": "avoid",
    "use": "不要用",
    "pitfall": "没有对应 statusID，'AP/值' 会返回 null",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.special.data",
+   "area": "combat",
+   "name": "WeaponSimple.GetSpecialAttack(int)",
+   "signature": "public virtual NewWeaponFireData GetSpecialAttack(int idx)",
+   "source": "WeaponSimple.cs",
+   "side": "both",
+   "kind": "harmony",
+   "use": "换特殊攻击的数据（原版 13 把武器都这么做）",
+   "pitfall": "只换 fire data，换不了动作；剑盾有四层分支",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.basic.data",
+   "area": "combat",
+   "name": "WeaponSimple.GetBasicAttack(idx, param)",
+   "signature": "NewWeaponFireData GetBasicAttack(int idx, int parameter)",
+   "source": "WeaponSimple.cs",
+   "side": "both",
+   "kind": "harmony",
+   "use": "换普攻段数据",
+   "pitfall": "剑盾 idx==20 是海獭突刺；元素套另有 basicComboAttacks",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.relstat",
+   "area": "combat",
+   "name": "WeaponSimple.GetRelatedStatMultiplier(...)",
+   "signature": "float GetRelatedStatMultiplier(..., out EDamageElementalType)",
+   "source": "WeaponSimple.cs:981",
+   "side": "server",
+   "kind": "harmony",
+   "use": "复算特殊攻击基础伤害",
+   "pitfall": "private，必须反射；第 4 参是 out 元素类型",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.anim.special",
+   "area": "combat",
+   "name": "WeaponControlAnimator.CreateSpecialAttackProjectile(int)",
+   "signature": "void CreateSpecialAttackProjectile(int idx)",
+   "source": "WeaponControlAnimator.cs",
+   "side": "both",
+   "kind": "harmony",
+   "use": "换动作（prefix 返回 false 后自己出伤）",
+   "pitfall": "get_CanDispatch() 是 private 且不保证只在服务端；返回 false 后同方法后续 prefix 不跑",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.anim.basic",
+   "area": "combat",
+   "name": "WeaponControlAnimator.CreateBasicAttackProjectile / CreateDashAttackProjectile",
+   "signature": "void CreateBasicAttackProjectile(int idx)",
+   "source": "WeaponControlAnimator.cs",
+   "side": "both",
+   "kind": "harmony",
+   "use": "换普攻/冲刺判定",
+   "pitfall": "接收器是 WeaponControlAnimator，打到 WeaponSimple 上不报错也不生效",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.anim.attackdash",
+   "area": "combat",
+   "name": "WeaponControlAnimator.AttackDash(string)",
+   "signature": "void AttackDash(string speedAndTime)",
+   "source": "WeaponControlAnimator.cs",
+   "side": "server",
+   "kind": "harmony",
+   "use": "屏蔽动画自带位移",
+   "pitfall": "动画的 speed/time 会覆盖你 SetAttackDash 的参数",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.ctrl.attackdash",
+   "area": "combat",
+   "name": "WeaponControllerSimple.AttackDash",
+   "signature": "void AttackDash()",
+   "source": "WeaponControllerSimple.cs",
+   "side": "server",
+   "kind": "harmony",
+   "use": "同上，更早拦一层",
+   "pitfall": "自己的武器 prefix 返回 false",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.special.fullymanual",
+   "area": "combat",
+   "name": "WeaponControllerSimple.CreateSpecialAttackSwingFullyManual(...)",
+   "signature": "public void CreateSpecialAttackSwingFullyManual(NewWeaponFireData data, ..., float mp)  // 8 参",
+   "source": "WeaponControllerSimple.cs:1093",
+   "side": "server",
+   "kind": "api",
+   "use": "自定义出伤但保留 addon 回调（内部 OnSpecialAttackSwing(-1)）",
+   "pitfall": "不放 FX/音效，自己补 CreateSpecialSwingFx + PlayFireFeedbackLocal",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.special.manualweapon",
+   "area": "combat",
+   "name": "WeaponSimple.CreateSpecialAttackProjectileFullyManual(...)",
+   "signature": "void CreateSpecialAttackProjectileFullyManual(...)",
+   "source": "WeaponSimple.cs",
+   "side": "server",
+   "kind": "api",
+   "use": "最自由的自造出伤",
+   "pitfall": "不触发 OnSpecialAttackSwing，addon/护符收不到",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.anim.trigger",
+   "area": "combat",
+   "name": "WeaponControllerSimple.SetAnimationTrigger(ref int)",
+   "signature": "void SetAnimationTrigger(ref int hash)",
+   "source": "WeaponControllerSimple.cs",
+   "side": "both",
+   "kind": "harmony",
+   "use": "换触发键（Sweep→DashAttack）",
+   "pitfall": "借原版直刺动画的捷径",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.invincible",
+   "area": "combat",
+   "name": "UnitAvatar.StartDodgeInvincible(EDodgeInvincibleType) / StopDodgeInvincible",
+   "signature": "void StartDodgeInvincible(EDodgeInvincibleType t)",
+   "source": "UnitAvatar.cs",
+   "side": "server",
+   "kind": "api",
+   "use": "出手无敌",
+   "pitfall": "时长自己控（实测 DashTime+0.15f）",
+   "channels": "any"
+  },
+  {
+   "id": "weapon.setentity",
+   "area": "combat",
+   "name": "WeaponSimple.SetEntity",
+   "signature": "void SetEntity(...)",
+   "source": "WeaponSimple.cs",
+   "side": "server",
+   "kind": "harmony",
+   "use": "换装后换贴图/换模型",
+   "pitfall": "升级本质是 weaponController.EquipWeapon(false,newId,false)",
+   "channels": "any"
+  },
+  {
+   "id": "ui.anvil.card",
+   "area": "ui",
+   "name": "UI_WeaponEnhancementButton.SetWeaponMethod",
+   "signature": "void SetWeaponMethod(UI_WeaponEnhancementPanel panel, WeaponSimple weapon, EnhancementMetadata meta)",
+   "source": "UI_WeaponEnhancementButton.cs:42",
+   "side": "client",
+   "kind": "harmony",
+   "use": "铁砧卡片文案（只写本阶新增）",
+   "pitfall": "方法先算文本再写字段 → 必须从 object[] __args[2] 取 metadata",
+   "channels": "any"
+  },
+  {
+   "id": "ui.weapon.tooltip",
+   "area": "ui",
+   "name": "UI_WeaponTooltip.Open + SetupTabs",
+   "signature": "void Open(IUITooltipOpener, RectTransform, Vector2, ITooltip)",
+   "source": "UI_WeaponTooltip.cs:243",
+   "side": "client",
+   "kind": "harmony",
+   "use": "武器提示框文案（列全部）",
+   "pitfall": "data 可能是 WeaponSimple 或 WeaponEntity；行数靠 SetupTabs prefix 抬 numberOfAddons",
+   "channels": "any"
+  },
+  {
+   "id": "ui.anvil.pool",
+   "area": "ui",
+   "name": "UI_WeaponEnhancementPanel.UpdateList / anvil.localWeaponList",
+   "signature": "void UpdateList()",
+   "source": "UI_WeaponEnhancementPanel.cs:99 / :128",
+   "side": "client",
+   "kind": "harmony",
+   "use": "保证铁砧一定给出你的分支",
+   "pitfall": "只替换 list 最后一格；别碰 Anvil.GetRandomEnhancement 的 candidates（只增不减）",
+   "channels": "any"
+  },
+  {
+   "id": "data.weapon.enhancements",
+   "area": "data",
+   "name": "WeaponDatabase.GetWeaponEnhancements(id)",
+   "signature": "List<EnhancementMetadata> GetWeaponEnhancements(int id)",
+   "source": "WeaponDatabase.cs:83",
+   "side": "both",
+   "kind": "api",
+   "use": "看某把武器的完整强化池",
+   "pitfall": "= standardEnhancements + 所有 enhanceFromId==id（过滤 enabled && IsUnlocked()）",
+   "channels": "any"
+  },
+  {
+   "id": "data.keyword.register",
+   "area": "data",
+   "name": "KeywordDatabase.Register / KeywordEntity",
+   "signature": "void Register(KeywordEntity k)",
+   "source": "KeywordDatabase.cs",
+   "side": "both",
+   "kind": "api",
+   "use": "自定义关键词（新动作名/状态名）",
+   "pitfall": "<tag=X> 只认已注册关键词；不要设 keywordImage/_spriteName（否则输出 sprite 尾巴）",
    "channels": "any"
   }
  ]
