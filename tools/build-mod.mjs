@@ -54,6 +54,14 @@ if (deploy) {
   deployed = path.join(ADDONS, folder);
   fs.mkdirSync(deployed, { recursive: true });
   for (const f of fs.readdirSync(dist)) fs.copyFileSync(path.join(dist, f), path.join(deployed, f));
+    // AddOns mods have no Localization module, so the texts travel with the dll (OnLocalizationReady reads them).
+    for (const extra of ['Localization', 'data', 'costume']) {
+      const from = path.join(modDir, extra);
+      if (!fs.existsSync(from)) continue;
+      const to = path.join(deployed, extra);
+      fs.rmSync(to, { recursive: true, force: true });
+      fs.cpSync(from, to, { recursive: true });
+    }
 }
 const size = fs.statSync(dll).size;
 console.log(`BUILD OK  ${path.basename(modDir)}  ${meta.modName} v${meta.modVersion}  ${meta.dllFile} ${size} B${deployed ? `  -> ${deployed}` : ''}`);
