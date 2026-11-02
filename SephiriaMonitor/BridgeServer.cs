@@ -508,10 +508,11 @@ namespace SephiriaMonitor
                     case "/arm":
                         {
                             int minutes = int.Parse(Query(query, "minutes", "120"));
+                            int slot = int.Parse(Query(query, "slot", "0"));
                             MonitorConfig.AutoEnter = true;          // runtime only, never written to the cfg
                             TitleControl.ResetAutoOnce();
-                            string armResult = AutoEnterGate.Arm(minutes);
-                            return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", true).Add("slot", MonitorConfig.AutoEnterSlot)
+                            string armResult = AutoEnterGate.Arm(minutes, slot);
+                            return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", true).Add("slot", slot > 0 ? slot : MonitorConfig.AutoEnterSlot)
                                 .Add("marker", Json.Obj().Add("armed", AutoEnterGate.IsArmed())).Add("detail", armResult));
                         }
                     case "/disarm":

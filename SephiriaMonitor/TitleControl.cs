@@ -360,14 +360,15 @@ namespace SephiriaMonitor
                     else
                     {
                         float waited = titleReadyAt < 0f ? 0f : (Time.realtimeSinceStartup - titleReadyAt) * 1000f;
-                        Dictionary<string, object> auto = Enter(MonitorConfig.AutoEnterSlot, false);
+                        string autoSlot = AutoEnterGate.Slot > 0 ? AutoEnterGate.Slot.ToString() : MonitorConfig.AutoEnterSlot;
+                    Dictionary<string, object> auto = Enter(autoSlot, false);
                         bool ok = auto.ContainsKey("ok") && auto["ok"] is bool && (bool)auto["ok"];
                         // one-shot: the marker can never cause a second auto-enter, even if the attempt failed
                         AutoEnterGate.Delete();
-                        MonitorPlugin.LogInfo("TITLE|auto|slot=" + MonitorConfig.AutoEnterSlot + "|ok=" + ok +
+                        MonitorPlugin.LogInfo("TITLE|auto|slot=" + autoSlot + "|ok=" + ok +
                                               "|gate=" + gateReason + "|afterReadyMs=" + waited.ToString("0") +
                                               (auto.ContainsKey("error") ? "|error=" + auto["error"] : ""));
-                        Events.Note("title", "auto_enter|" + MonitorConfig.AutoEnterSlot + "|ok=" + ok);
+                        Events.Note("title", "auto_enter|" + autoSlot + "|ok=" + ok);
                     }
                 }
             }
