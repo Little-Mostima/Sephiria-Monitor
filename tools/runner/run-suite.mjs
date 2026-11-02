@@ -111,7 +111,7 @@ async function runStep(step, ctx, index) {
         const { value } = await readPath(body);
         const key = body.key || `${body.path}${body.field ? '.' + body.field : ''}`;
         if (opts.baseline) {
-          ctx.baseline[key] = value;
+          ctx.baseline.values[key] = value;
           log(`baseline ${key} = ${JSON.stringify(value)}`);
         } else {
           if (!(key in ctx.baseline.values)) fail(`baseline has no key ${key} — rerun with --baseline`);

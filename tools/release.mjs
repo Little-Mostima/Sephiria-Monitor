@@ -74,7 +74,17 @@ let gameVersion = 'unknown';
 try {
   const h = await health(1500);
   pluginVersion = h.version || pluginVersion;
-  gameVersion = h.game || gameVersion;
+  gameVersion = h.gameVersion || h.game || gameVersion;
+} catch {}
+
+// Evidence from the last in-game session: the workshop channel logs both lines when it loads a
+// local package, and the mod's own line proves the entry class really ran.
+let injected = false;
+let activeLine = false;
+try {
+  const txt = fs.readFileSync(path.join(GAME, 'BepInEx', 'LogOutput.log'), 'utf8');
+  injected = txt.includes('로컬 패키지 주입');
+  activeLine = txt.includes('✓ [Active]') && txt.includes(modId);
 } catch {}
 
 const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
