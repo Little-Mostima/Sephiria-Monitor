@@ -135,10 +135,10 @@ export function killGame() {
 
 // Launch and wait for the bridge. If nothing appears and the log never advanced, the launcher
 // probably lost the race against Steam (or a crashed instance still held the lock): kill and retry once.
-export async function launchAndWait({ timeoutMs = 180000, log = () => {} } = {}) {
+export async function launchAndWait({ timeoutMs = 180000, log = () => {}, consoleWindow = false } = {}) {
   const playerLog = path.join(os.homedir(), 'AppData', 'LocalLow', 'TEAMHORAY', 'Sephiria', 'Player.log');
   const before = fs.existsSync(playerLog) ? fs.statSync(playerLog).mtimeMs : 0;
-  launchGame();
+  launchGame({ consoleWindow });
   try {
     return await waitBridgeMinimizing(timeoutMs);
   } catch (e) {
@@ -147,7 +147,7 @@ export async function launchAndWait({ timeoutMs = 180000, log = () => {} } = {})
     log('bridge never appeared; killing and relaunching once');
     killGame();
     await sleep(2000);
-    launchGame();
+    launchGame({ consoleWindow });
     return waitBridgeMinimizing(timeoutMs);
   }
 }
@@ -168,7 +168,7 @@ export function launchGame({ consoleWindow = false } = {}) {
   spawnSync('cmd.exe', ['/c', 'start', '', STEAM_URL], { stdio: 'ignore', windowsHide: true, timeout: 15000 });
 }
 
-export async function ensureRunning({ restart = false, log = () => {} } = {}) {
+export async function ensureRunning({ restart = false, log = () => {}, consoleWindow = false } = {}) {
   if (restart) {
     log('restarting game');
     killGame();
