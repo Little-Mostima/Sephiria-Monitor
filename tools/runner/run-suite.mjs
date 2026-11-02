@@ -79,9 +79,35 @@ function checkVersion(h) {
   }
 }
 
+// Finds the first object inside any array of the response whose `where.field` equals `where.equals`.
+// Lets a suite assert "the CURSE combo entry has applied == 6" without knowing its array index.
+function findByWhere(body, where) {
+  const want = where.field;
+  const val = where.equals;
+  const arrays = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) {
+      arrays.push(node);
+      for (const el of node) walk(el);
+    } else if (node && typeof node === 'object') {
+      for (const k of Object.keys(node)) walk(node[k]);
+    }
+  };
+  walk(body);
+  for (const arr of arrays) {
+    const hit = arr.find((el) => el && typeof el === 'object' && String(el[want]) === String(val));
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 async function readPath(step) {
   const p = typeof step === 'string' ? step : step.path;
   const body = await getJson(p, Number(step.timeoutMs || 15000));
+  if (typeof step !== 'string' && step.where) {
+    const hit = findByWhere(body, step.where);
+    return { body, value: hit === undefined ? undefined : pick(hit, step.field) };
+  }
   return { body, value: pick(body, typeof step === 'string' ? undefined : step.field) };
 }
 
