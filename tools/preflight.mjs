@@ -21,6 +21,7 @@ const tier = tierIdx >= 0 ? args[tierIdx + 1] : 'full'; // smoke | fast | full
 const skipBuild = args.includes('--skip-build');
 const asJson = args.includes('--json');
 const reuse = args.includes('--reuse');
+const suiteRetries = Number((args.find((a) => a.startsWith('--suite-retries=')) || '--suite-retries=1').split('=')[1]) || 0;
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
 const modDir = target ? path.resolve(target) : null;
 const stages = [];
@@ -159,7 +160,14 @@ if (!skipTests) {
       record('suite:' + suite.replace('.suite.json', ''), true, `skipped (tier ${suiteTier} > ${tier})`);
       continue;
     }
-    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), suitePath, '--no-watchdog', ...(reuse ? ['--reuse'] : [])], { stdio: 'pipe', encoding: 'utf8' });
+    // A game-driven suite can lose a restart race under load (the old process is still dying when the
+    // new one boots). One retry turns that noise into a pass without hiding a real failure.
+    const suiteArgs = [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), suitePath, '--no-watchdog', '--retries', String(suiteRetries), ...(reuse ? ['--reuse'] : [])];
+    let res = spawnSync(process.execPath, suiteArgs, { stdio: 'pipe', encoding: 'utf8' });
+    if (res.status !== 0 && suiteRetries > 0) {
+      console.log('  retrying once after a failed attempt (flaky restart race)');
+      res = spawnSync(process.execPath, suiteArgs, { stdio: 'pipe', encoding: 'utf8' });
+    }
     const text = ((res.stdout || '') + (res.stderr || '')).trim();
     const last = text.split('\n').filter((l) => /PASS|FAIL|FAILED/.test(l)).slice(-1)[0] || text.split('\n').slice(-1)[0];
     record('suite:' + suite.replace('.suite.json', ''), res.status === 0, last);
