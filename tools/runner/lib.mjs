@@ -94,8 +94,40 @@ export async function waitBridge(timeoutMs = 90000) {
   return waitFor(() => health(), { timeoutMs, intervalMs: 1500, label: 'bridge /health' });
 }
 
+const syncSleep = (ms) => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* ignore */ } };
+
 export function killGame() {
+  if (!isGameRunning()) return true;
   spawnSync('taskkill.exe', ['/IM', 'Sephiria.exe', '/F'], { stdio: 'ignore' });
+  // wait for the process to actually disappear: relaunching while the old one is still
+  // tearing down makes Steam hand back a hung process (Player.log stops after the Mono path lines)
+  const deadline = Date.now() + 25000;
+  while (Date.now() < deadline) {
+    if (!isGameRunning()) return true;
+    syncSleep(500);
+  }
+  spawnSync('taskkill.exe', ['/IM', 'Sephiria.exe', '/F', '/T'], { stdio: 'ignore' });
+  syncSleep(1000);
+  return !isGameRunning();
+}
+
+// Launch and wait for the bridge. If nothing appears and the log never advanced, the launcher
+// probably lost the race against Steam (or a crashed instance still held the lock): kill and retry once.
+export async function launchAndWait({ timeoutMs = 120000, log = () => {} } = {}) {
+  const playerLog = path.join(os.homedir(), 'AppData', 'LocalLow', 'TEAMHORAY', 'Sephiria', 'Player.log');
+  const before = fs.existsSync(playerLog) ? fs.statSync(playerLog).mtimeMs : 0;
+  launchGame();
+  try {
+    return await waitBridge(timeoutMs);
+  } catch (e) {
+    const advanced = fs.existsSync(playerLog) && fs.statSync(playerLog).mtimeMs > before;
+    if (advanced && isGameRunning()) throw e;
+    log('bridge never appeared; killing and relaunching once');
+    killGame();
+    await sleep(2000);
+    launchGame();
+    return waitBridge(timeoutMs);
+  }
 }
 
 export function launchGame() {
@@ -113,8 +145,7 @@ export async function ensureRunning({ restart = false, log = () => {} } = {}) {
   let h = await health();
   if (!h || !h.ok) {
     log('launching game');
-    launchGame();
-    h = await waitBridge();
+    h = await launchAndWait({ log });
   }
   log(`bridge ok: plugin ${h.version} · ${h.scene}`);
   return h;
@@ -267,6 +298,39 @@ export function deployMod(name, log = () => {}) {
   return placed;
 }
 
+// Workshop channel: put a built package where the game's workshop pipeline looks for local
+// packages (WorkshopLocal\<modId>\metadata.json). This is how the packaged artifact gets tested —
+// AddOns has its own loader and would hide a broken nested manifest.
+export function installPackage(zipOrDir) {
+  const src = path.resolve(zipOrDir);
+  if (!fs.existsSync(src)) throw new Error('package not found: ' + src);
+  const wsl = path.join(GAME, 'WorkshopLocal');
+  fs.mkdirSync(wsl, { recursive: true });
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sephiria-pkg-'));
+  if (fs.statSync(src).isDirectory()) {
+    copyDir(src, tmp);
+  } else {
+    const res = spawnSync('powershell.exe', ['-NoProfile', '-Command',
+      `Expand-Archive -LiteralPath '${src}' -DestinationPath '${tmp}' -Force`], { stdio: 'pipe' });
+    if (res.status !== 0) throw new Error('cannot expand ' + src);
+  }
+  const metaPath = path.join(tmp, 'metadata.json');
+  if (!fs.existsSync(metaPath)) throw new Error('package has no metadata.json at its root: ' + src);
+  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8').replace(/^\uFEFF/, ''));
+  const id = (meta.mod && meta.mod.modId) || path.basename(src).replace(/-\d+\.\d+\.\d+(\.zip)?$/i, '').replace(/\.zip$/i, '');
+  const dst = path.join(wsl, id);
+  fs.rmSync(dst, { recursive: true, force: true });
+  copyDir(tmp, dst);
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return { id, dir: dst };
+}
+
+export function removePackage(id) {
+  const dst = path.join(GAME, 'WorkshopLocal', String(id));
+  fs.rmSync(dst, { recursive: true, force: true });
+  return dst;
+}
+
 export function undeployMod(name, log = () => {}) {
   const manifest = readManifest(name);
   const deploy = manifest.deploy || {};
@@ -301,7 +365,11 @@ export function compare(op, actual, expected) {
     case '>=': return Number(actual) >= Number(expected);
     case '<': return Number(actual) < Number(expected);
     case '<=': return Number(actual) <= Number(expected);
-    case 'contains': return String(actual ?? '').includes(String(expected));
+    case 'contains':
+    // arrays of objects: match on the stringified element, so a suite can assert
+    // /mods {source:"workshop"} without adding new endpoints
+    if (Array.isArray(actual)) return actual.some((v) => JSON.stringify(v).includes(String(expected)));
+    return String(actual ?? '').includes(String(expected));
     case 'matches': return new RegExp(String(expected)).test(String(actual ?? ''));
     case 'exists': return actual !== undefined && actual !== null;
     default: throw new Error(`unknown op ${op}`);

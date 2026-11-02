@@ -64,12 +64,21 @@ if (!skipBuild) {
   record('build', true, 'skipped');
 }
 
-// 3. package (no zip, just validate the nested manifest can be produced)
+// 3. package + validate the artifact people will actually upload
 {
-  const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'pack-workshop.mjs'), modDir, '--no-zip'], { stdio: 'pipe', encoding: 'utf8' });
-  const out = ((res.stdout || '') + (res.stderr || '')).trim().split('\n').slice(-2).join(' | ');
-  record('package', res.status === 0, res.status === 0 ? out : out);
-  if (res.status !== 0) finish();
+  const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'pack-workshop.mjs'), modDir], { stdio: 'pipe', encoding: 'utf8' });
+  if (res.status !== 0) {
+    record('package', false, ((res.stdout || '') + (res.stderr || '')).trim().split('\n').slice(-2).join(' | '));
+    finish();
+  }
+  const meta = readJson(path.join(modDir, 'metadata.json'));
+  const ws = readJson(path.join(modDir, 'workshop.json'));
+  const modId = ws.modId || `com.mostima.${String(meta.modName || '').toLowerCase()}`;
+  const zip = path.join(REPO, 'dist', 'workshop', `${modId}-${meta.modVersion}.zip`);
+  const chk = spawnSync(process.execPath, [path.join(REPO, 'tools', 'check-package.mjs'), zip], { stdio: 'pipe', encoding: 'utf8' });
+  const chkOut = ((chk.stdout || '') + (chk.stderr || '')).trim().split('\n').slice(-1)[0];
+  record('package', chk.status === 0, chkOut || `zip ${fs.statSync(zip).size} B`);
+  if (chk.status !== 0) finish();
 }
 
 // 4. scenario suites

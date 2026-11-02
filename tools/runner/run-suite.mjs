@@ -16,7 +16,7 @@ import {
   ensureRunning, waitWorld, arm, disarm, killGame, launchGame, waitBridge,
   snapshot, restore, backupSaves, restoreSaves, deployMod, undeployMod,
   readManifest, modDir, pick, compare, numDiff, artifactsDir, captureArtifacts,
-  isGameRunning, copyDir,
+  isGameRunning, copyDir, installPackage, removePackage,
 } from './lib.mjs';
 
 const argv = process.argv.slice(2);
@@ -175,6 +175,17 @@ async function runStep(step, ctx, index) {
       }
       case 'undeploy': {
         undeployMod(String(body), log);
+        results.steps.push({ index, kind, name: String(body), ok: true, ms: Date.now() - started });
+        return;
+      }
+      case 'installPackage': {
+        const r = installPackage(String(body));
+        log(`installed workshop package ${r.id} -> ${r.dir}`);
+        results.steps.push({ index, kind, name: r.id, ok: true, ms: Date.now() - started });
+        return;
+      }
+      case 'removePackage': {
+        removePackage(String(body));
         results.steps.push({ index, kind, name: String(body), ok: true, ms: Date.now() - started });
         return;
       }
