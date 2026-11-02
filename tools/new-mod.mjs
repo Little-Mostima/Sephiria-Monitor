@@ -15,7 +15,7 @@ import path from 'node:path';
 const args = process.argv.slice(2);
 const raw = args.find((a) => !a.startsWith('--'));
 if (!raw) {
-  console.error('usage: node tools/new-mod.mjs <Name> [--id com.mostima.<name>] [--author <name>]');
+  console.error('usage: node tools/new-mod.mjs <Name> [--id com.mostima.<name>] [--author <name>] [--kind plugin|content]');
   process.exit(2);
 }
 const flag = (name, dflt) => {
@@ -33,6 +33,51 @@ const author = flag('author', 'Mostima');
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
 const dir = path.join(REPO, 'work', folder);
 if (fs.existsSync(dir)) { console.error(`work/${folder} already exists`); process.exit(1); }
+
+const kind = flag('kind', 'plugin');
+
+// --kind content: copy the multi-content package template (potions + charm + weapon + tablet,
+// Localization module, regression suite) and rebrand it. Template lives in the docs checkout,
+// not in this repo, because work/ is local-only.
+if (kind === 'content') {
+  const TPL = path.resolve(REPO, '..', '..', '_re', 'MODDEV', 'templates', 'content-pack');
+  if (!fs.existsSync(TPL)) {
+    console.error('template not found: ' + TPL);
+    process.exit(1);
+  }
+  const rename = (name) => name
+    .replace(/^ContentPack\.csproj$/, Pascal + '.csproj')
+    .replace(/^ContentPackMod\.cs$/, Pascal + 'Mod.cs')
+    .replace(/^content-pack\.suite\.json$/, folder + '.suite.json');
+  // item ids must not collide with another installed mod (or with the monitor's 9000xx probes):
+  // the template ships 900010..900014, every scaffold gets --base-id (default 910000).
+  const baseId = Number(flag('base-id', '910000'));
+  if (!Number.isInteger(baseId) || baseId < 900000) { console.error('--base-id must be an integer >= 900000'); process.exit(2); }
+  const idMap = new Map([[900010, baseId], [900011, baseId + 1], [900012, baseId + 2], [900013, baseId + 3], [900014, baseId + 4]]);
+  const remapIds = (text) => text.replace(/\b(90001[0-4])\b/g, (m) => String(idMap.get(Number(m))));
+  const rebrand = (text) => remapIds(text)
+    .split('Content Pack').join(Pascal)
+    .split('com.mostima.contentpack').join(modId)
+    .split('content-pack').join(folder)
+    .split('ContentPack').join(Pascal)
+    .split('Content_').join(Pascal + '_');
+
+  const copyDir = (from, to) => {
+    for (const e of fs.readdirSync(from, { withFileTypes: true })) {
+      const srcPath = path.join(from, e.name);
+      const dstPath = path.join(to, rename(e.name));
+      if (e.isDirectory()) { fs.mkdirSync(dstPath, { recursive: true }); copyDir(srcPath, dstPath); continue; }
+      if (/\.(png|jpg|jpeg)$/i.test(e.name)) { fs.copyFileSync(srcPath, dstPath); continue; }
+      fs.writeFileSync(dstPath, rebrand(fs.readFileSync(srcPath, 'utf8')), 'utf8');
+    }
+  };
+  fs.mkdirSync(dir, { recursive: true });
+  copyDir(TPL, dir);
+  console.log(`created work/${folder}/  (content pack: 2 potions, a charm, a weapon, a tablet)`);
+  console.log(`  next:  cd work/${folder}; .\\build.ps1`);
+  console.log(`         node tools/preflight.mjs work/${folder}`);
+  process.exit(0);
+}
 
 const write = (rel, text) => {
   const p = path.join(dir, rel);

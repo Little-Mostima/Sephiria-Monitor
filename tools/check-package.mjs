@@ -34,6 +34,8 @@ const warns = [];
 const err = (m) => errors.push(m);
 const warn = (m) => warns.push(m);
 
+let meta = null;
+let bytes = null; // resolved lazily: report() can run before the size step
 const rel = (p) => p.replace(/\\/g, '/');
 const insideRoot = (p) => {
   const abs = path.resolve(root, p);
@@ -50,9 +52,32 @@ if (!fs.existsSync(metaPath)) {
     warn(`package root has one nested folder "${dirs[0].name}" — uploads usually expect metadata.json at the zip root`);
   }
 }
+// ---- review policy (docs/zh-CN/publishing.md): every shipped file is reviewed ----
+const FORBIDDEN_FILES = ['.pdb', '.deps.json'];
+const GAME_ASSEMBLIES = new Set([
+  'assembly-csharp.dll', '0harmony.dll', 'mirror.dll', 'unityengine.dll',
+  'unityengine.coremodule.dll', 'unityengine.ui.dll', 'unityengine.audiomodule.dll',
+]);
+const MAX_CODE_BYTES = 20 * 1024 * 1024;
+let hasCodeModule = false;
+(function scan(dir, prefix) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, e.name);
+    const r = prefix ? `${prefix}/${e.name}` : e.name;
+    if (e.isDirectory()) {
+      if (e.name === 'obj' || e.name === 'bin') err(`build directory in package: ${r}/`);
+      scan(abs, r);
+      continue;
+    }
+    const lower = e.name.toLowerCase();
+    if (FORBIDDEN_FILES.some((x) => lower.endsWith(x))) err(`build artifact in package: ${r}`);
+    if (GAME_ASSEMBLIES.has(lower)) err(`copy of a game assembly in package: ${r}`);
+    if (lower.endsWith('.dll')) hasCodeModule = true;
+  }
+})(root, '');
+
 if (!fs.existsSync(metaPath)) { err('metadata.json missing at package root'); report(); }
 
-let meta;
 try {
   // strip a UTF-8 BOM: PowerShell 5.1's `Set-Content -Encoding UTF8` writes one, and the game's
   // Newtonsoft reader tolerates it, so a mod author may ship it without noticing.
@@ -124,13 +149,14 @@ function packageBytes() {
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).reduce((n, d) => n + (d.isDirectory() ? walk(path.join(dir, d.name)) : fs.statSync(path.join(dir, d.name)).size), 0);
   try { return walk(root); } catch { return 0; }
 }
-let bytes = packageBytes();
+bytes = packageBytes();
+if (hasCodeModule && bytes > MAX_CODE_BYTES) err(`code package is ${(bytes / 1048576).toFixed(1)} MB — review limit is 20 MB`);
 if (bytes > 50 * 1024 * 1024) warn(`package is ${(bytes / 1048576).toFixed(1)} MB — large uploads are slow and may hit limits`);
 
 report();
 
 function report() {
-  if (bytes === undefined) bytes = packageBytes();
+  if (bytes === null) bytes = packageBytes();
   const modId = meta && meta.mod ? meta.mod.modId : '?';
   const version = meta && meta.mod ? meta.mod.version : '?';
   if (tmp) { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {} }

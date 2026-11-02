@@ -45,6 +45,34 @@ fs.rmSync(pkg, { recursive: true, force: true });
 fs.mkdirSync(pkg, { recursive: true });
 if (dll) fs.copyFileSync(dll, path.join(pkg, meta.dllFile));
 
+// Review policy (team-horay/sephiria_modding docs/zh-CN/publishing.md): every file in the folder is
+// reviewed, so build intermediates and copies of game assemblies must never ship.
+const FORBIDDEN_FILES = ['.pdb', '.deps.json'];
+const GAME_ASSEMBLIES = new Set([
+  'assembly-csharp.dll', '0harmony.dll', 'mirror.dll', 'unityengine.dll',
+  'unityengine.coremodule.dll', 'unityengine.ui.dll', 'unityengine.audiomodule.dll',
+]);
+const MAX_CODE_BYTES = 20 * 1024 * 1024; // code mods must stay under 20 MB after zipping
+
+function scanForbidden(dir) {
+  const bad = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) {
+        if (e.name === 'obj' || e.name === 'bin') bad.push(path.relative(dir, full) + '/');
+        walk(full);
+      } else {
+        const lower = e.name.toLowerCase();
+        if (FORBIDDEN_FILES.some((ext) => lower.endsWith(ext))) bad.push(path.relative(dir, full));
+        if (GAME_ASSEMBLIES.has(lower)) bad.push(path.relative(dir, full) + ' (game assembly copy)');
+      }
+    }
+  };
+  walk(dir);
+  return bad;
+}
+
 const modules = dll ? [{ type: 'dll', path: meta.dllFile, entryClass }] : [];
 const locDir = path.join(modDir, 'Localization');
 if (fs.existsSync(locDir)) {
@@ -77,6 +105,9 @@ const preview = ws.preview || 'thumbnail.png';
 if (fs.existsSync(path.join(modDir, preview))) fs.copyFileSync(path.join(modDir, preview), path.join(pkg, preview));
 else console.warn(`pack: no ${preview} — the workshop page will show an empty thumbnail`);
 
+const forbidden = scanForbidden(pkg);
+if (forbidden.length) fail('package contains files the review rejects: ' + forbidden.join(', '));
+
 const nested = {
   info: {
     title: ws.title,
@@ -108,6 +139,10 @@ if (!noZip) {
   } catch (ex) {
     fail('zip failed: ' + (ex.stderr ? ex.stderr.toString() : ex.message));
   }
+}
+
+if (zipPath && dll && fs.statSync(zipPath).size > MAX_CODE_BYTES) {
+  fail(`code package is ${(fs.statSync(zipPath).size / 1048576).toFixed(1)} MB — review limit is 20 MB`);
 }
 
 console.log(`packed  ${modId} v${meta.modVersion}`);
