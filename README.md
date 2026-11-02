@@ -206,6 +206,7 @@ tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<mo
 tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
 tools/doctor.mjs          node doctor.mjs → 环境自检（游戏 / dotnet / 插件版本 / 桥 / 存档 / 模组通道）
 tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则校验产物（preflight 已内置）
+tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
 ```
 
 隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。

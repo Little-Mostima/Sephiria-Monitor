@@ -70,6 +70,14 @@ else {
   if (meta.info.preview && !fs.existsSync(path.join(root, meta.info.preview))) warn(`info.preview points at a missing file: ${meta.info.preview}`);
 }
 if (meta.tags !== undefined && !Array.isArray(meta.tags)) err('tags must be an array');
+  // The game only resolves these categories; anything else uploads but is invisible in the
+  // workshop filters (observed: "tags 태그 'Utility'는 창작마당 카테고리 목록에 없음").
+  const TAG_CATEGORIES = ['Item', 'Costume', 'Weapon', 'NPC', 'Enemy', 'Gameplay', 'QoL', 'Library', 'Localization'];
+  if (Array.isArray(meta.tags)) {
+    for (const tag of meta.tags) {
+      if (!TAG_CATEGORIES.includes(tag)) warn(`tag "${tag}" is not one of the workshop categories (${TAG_CATEGORIES.join('/')}) — it uploads but is filtered out`);
+    }
+  }
 
 // ---- mod block ----
 const mod = meta.mod;
