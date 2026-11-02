@@ -168,6 +168,9 @@ check('hooks catalogue', hooks.total > 50 && hooks.hooks.length > 0, `${hooks.to
     check('ui stack', typeof ui.depth === 'number', `depth=${ui.depth}, open=${(ui.open || []).length}`);
     const uiText = await tool('sephiria_ui', { action: 'text' });
     check('ui text', Array.isArray(uiText.panels), `${(uiText.panels || []).length} panel(s)`);
+const rescan = await getJson('/mods?action=rescan');
+check('mods rescan', rescan && typeof rescan.ok === 'boolean',
+  `ok=${rescan && rescan.ok}, restartRequired=${rescan && rescan.restartRequired}`);
   } catch (e) {
     bad('mods', e.message);
   }

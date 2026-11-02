@@ -17,7 +17,7 @@ import {
   snapshot, restore, backupSaves, restoreSaves, verifySaves, hashFiles, deployMod, undeployMod,
   prepareTestSlot, cleanupTestSlot,
   readManifest, modDir, pick, compare, numDiff, artifactsDir, captureArtifacts,
-  isGameRunning, copyDir, installPackage, removePackage,
+  isGameRunning, copyDir, installPackage, removePackage, rescan,
 } from './lib.mjs';
 
 const argv = process.argv.slice(2);
@@ -29,6 +29,7 @@ const opts = {
   retries: 1,
   tier: (() => { const i = argv.indexOf('--tier'); return i >= 0 ? argv[i + 1] : null; })(),
   slot: (() => { const i = argv.indexOf('--slot'); return i >= 0 ? parseInt(argv[i + 1], 10) || 0 : 0; })(),
+  reuse: argv.includes('--reuse'),
   verbose: argv.includes('--verbose'),
 };
 for (let i = 0; i < argv.length; i++) {
@@ -204,6 +205,12 @@ async function runStep(step, ctx, index) {
         results.steps.push({ index, kind, name: String(body), ok: true, ms: Date.now() - started });
         return;
       }
+      case 'rescan': {
+        const r = await rescan();
+        step.extra = r;
+        if (r && r.ok === false) throw new Error(`rescan failed: ${r.error || 'unknown'}`);
+        break;
+      }
       case 'installPackage': {
         const r = installPackage(String(body));
         log(`installed workshop package ${r.id} -> ${r.dir}`);
@@ -288,8 +295,23 @@ async function runSuite(ctx) {
   }
 }
 
+// --reuse: join a game that is already running instead of cold-starting. Suites that install a
+// package and assert activation (installPackage + rescan) then cost seconds, not a restart.
+async function reuseSession() {
+  const h0 = await health();
+  if (!h0 || !h0.ok) {
+    throw new Error('--reuse: the bridge is down — start the game first (node tools/launch-bg.mjs --world)');
+  }
+  if (h0.scene !== 'MainWorld') {
+    log('--reuse: at title, arming and waiting for the world');
+    await arm(120, opts.slot || 0);
+    await waitWorld({ log, slot: opts.slot || 0 });
+  }
+  return health();
+}
+
 async function main() {
-  const h = await ensureRunning({ log });
+  const h = opts.reuse ? await reuseSession() : await ensureRunning({ log });
   checkVersion(h);
   results.meta = { gameVersion: h.gameVersion, pluginVersion: h.version, scene: h.scene };
 

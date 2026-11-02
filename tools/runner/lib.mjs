@@ -214,6 +214,12 @@ export async function ensureRunning({ restart = false, log = () => {}, consoleWi
   return h;
 }
 
+/** Re-scan WorkshopLocal in-world: newly installed packages activate without a restart (0.23.0). */
+export async function rescan(timeoutMs = 30000) {
+  const r = await getJson("/mods?action=rescan", timeoutMs);
+  return r;
+}
+
 export async function arm(minutes = 120, slot = 0) {
   return getJson(`/arm?minutes=${minutes}` + (slot ? `&slot=${slot}` : ''));
 }
