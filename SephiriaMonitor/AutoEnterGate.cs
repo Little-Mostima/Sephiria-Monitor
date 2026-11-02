@@ -101,7 +101,36 @@ namespace SephiriaMonitor
         }
 
         /// <summary>Writes/refreshes the marker. Called by /arm (and by the agent through the shell).</summary>
+        /// <summary>Slot requested by the marker (0 = use the configured default).</summary>
+        public static int Slot
+        {
+            get
+            {
+                try
+                {
+                    string p = Path;
+                    if (string.IsNullOrEmpty(p) || !File.Exists(p)) return 0;
+                    foreach (string line in File.ReadAllLines(p))
+                    {
+                        string t = (line ?? "").Trim();
+                        if (t.StartsWith("slot=", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int n;
+                            if (int.TryParse(t.Substring(5).Trim(), out n) && n > 0 && n <= 9) return n;
+                        }
+                    }
+                }
+                catch { }
+                return 0;
+            }
+        }
+
         public static string Arm(int minutes)
+        {
+            return Arm(minutes, 0);
+        }
+
+        public static string Arm(int minutes, int slot)
         {
             if (minutes <= 0 || minutes > 1440)
             {
@@ -113,8 +142,8 @@ namespace SephiriaMonitor
                 return "{\"ok\":false,\"error\":\"no plugin path\"}";
             }
             long expires = NowUnix() + minutes * 60L;
-            File.WriteAllText(p, "expires=" + expires.ToString(CultureInfo.InvariantCulture) + "\n# written by Sephiria Monitor; delete this file to cancel auto-enter\n");
-            return "{\"ok\":true,\"file\":\"" + JsonEsc(p) + "\",\"expires\":" + expires + ",\"minutes\":" + minutes + "}";
+            File.WriteAllText(p, "expires=" + expires.ToString(CultureInfo.InvariantCulture) + "\n" + (slot > 0 ? "slot=" + slot + "\n" : "") + "# written by Sephiria Monitor; delete this file to cancel auto-enter\n");
+            return "{\"ok\":true,\"file\":\"" + JsonEsc(p) + "\",\"expires\":" + expires + ",\"minutes\":" + minutes + ",\"slot\":" + slot + "}";
         }
 
         /// <summary>Consumes the marker: call after the auto-enter attempt so it can never fire twice.</summary>

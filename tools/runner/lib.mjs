@@ -214,8 +214,42 @@ export async function ensureRunning({ restart = false, log = () => {}, consoleWi
   return h;
 }
 
-export async function arm(minutes = 120) {
-  return getJson(`/arm?minutes=${minutes}`);
+export async function arm(minutes = 120, slot = 0) {
+  return getJson(`/arm?minutes=${minutes}` + (slot ? `&slot=${slot}` : ''));
+}
+
+// A dedicated test slot: clone SLOT1.sav to SLOTn.sav before a suite and remove it afterwards,
+// so a test run never writes the slot the player actually uses.
+export function prepareTestSlot(n) {
+  if (!n || n === 1) return null;
+  const src = path.join(SAVES, 'SLOT1.sav');
+  const dst = path.join(SAVES, `SLOT${n}.sav`);
+  if (!fs.existsSync(src)) throw new Error('no SLOT1.sav to clone for the test slot');
+  // remember what already belongs to this slot so cleanup only removes what the test created
+  const before = fs.existsSync(SAVES) ? fs.readdirSync(SAVES).filter((f) => f.startsWith(`SLOT${n}`)) : [];
+  fs.writeFileSync(path.join(STATE, `slot${n}-before.json`), JSON.stringify(before));
+  if (fs.existsSync(dst)) fs.copyFileSync(dst, dst + '.bak');
+  fs.copyFileSync(src, dst);
+  return dst;
+}
+
+export function cleanupTestSlot(n) {
+  if (!n || n === 1) return;
+  const dst = path.join(SAVES, `SLOT${n}.sav`);
+  const bak = dst + '.bak';
+  const manifest = path.join(STATE, `slot${n}-before.json`);
+  let before = [];
+  try { before = JSON.parse(fs.readFileSync(manifest, 'utf8')); } catch {}
+  const keep = new Set(before);
+  try {
+    // remove everything the test created for this slot (save, TMP, the game's own backups)
+    for (const f of fs.readdirSync(SAVES)) {
+      if (!f.startsWith(`SLOT${n}`) || keep.has(f) || f.endsWith('.bak')) continue;
+      fs.rmSync(path.join(SAVES, f), { force: true });
+    }
+    if (fs.existsSync(bak)) { fs.copyFileSync(bak, dst); fs.rmSync(bak); }
+    fs.rmSync(manifest, { force: true });
+  } catch {}
 }
 
 export async function disarm() {
@@ -223,15 +257,15 @@ export async function disarm() {
 }
 
 /** Wait until the game is in MainWorld; arms the gate first if it is still on the title screen. */
-export async function waitWorld({ timeoutMs = 180000, log = () => {} } = {}) {
+export async function waitWorld({ timeoutMs = 180000, log = () => {}, slot = 0 } = {}) {
   const h = await health();
   if (h && h.scene === 'MainWorld') return h;
   if (h && h.scene === 'Title') {
     log('title screen reached, arming auto-enter');
-    await arm();
+    await arm(120, slot);
   } else {
     // still booting: arm right away, the plugin reads the marker when the title appears
-    await tryJson('/arm?minutes=120').catch(() => null);
+    await tryJson('/arm?minutes=120' + (slot ? `&slot=${slot}` : '')).catch(() => null);
   }
   return waitFor(async () => {
     minimizeGameNow();
@@ -327,11 +361,13 @@ export function hashFiles(dir) {
   return out;
 }
 
-export function verifySaves(tag) {
+export function verifySaves(tag, ignore = []) {
   const dir = path.join(STATE, `saves-${tag}`);
   const want = hashFiles(dir);
   const bad = [];
+  const skip = new Set(ignore);
   for (const [f, h] of Object.entries(want)) {
+    if (skip.has(f)) continue;
     const cur = path.join(SAVES, f);
     const got = fs.existsSync(cur) ? crypto.createHash('sha256').update(fs.readFileSync(cur)).digest('hex') : null;
     if (got !== h) bad.push(f);

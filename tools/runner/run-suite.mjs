@@ -15,6 +15,7 @@ import {
   REPO, WORK, GAME, SAVES, health, get, getJson, tryJson, waitFor, sleep,
   ensureRunning, waitWorld, arm, disarm, killGame, killGameAndWait, launchGame, waitBridge,
   snapshot, restore, backupSaves, restoreSaves, verifySaves, hashFiles, deployMod, undeployMod,
+  prepareTestSlot, cleanupTestSlot,
   readManifest, modDir, pick, compare, numDiff, artifactsDir, captureArtifacts,
   isGameRunning, copyDir, installPackage, removePackage,
 } from './lib.mjs';
@@ -27,6 +28,7 @@ const opts = {
   watchdog: !argv.includes('--no-watchdog'),
   retries: 1,
   tier: (() => { const i = argv.indexOf('--tier'); return i >= 0 ? argv[i + 1] : null; })(),
+  slot: (() => { const i = argv.indexOf('--slot'); return i >= 0 ? parseInt(argv[i + 1], 10) || 0 : 0; })(),
   verbose: argv.includes('--verbose'),
 };
 for (let i = 0; i < argv.length; i++) {
@@ -131,7 +133,7 @@ async function runStep(step, ctx, index) {
         return;
       }
       case 'arm': {
-        const res = await arm(Number((body && body.minutes) || 120));
+        const res = await arm(Number((body && body.minutes) || 120), opts.slot);
         results.steps.push({ index, kind, ok: true, detail: res, ms: Date.now() - started });
         return;
       }
@@ -178,7 +180,7 @@ async function runStep(step, ctx, index) {
           launchGame();
           await waitBridge(150000);
         }
-        await waitWorld({ timeoutMs: 180000, log });
+        await waitWorld({ timeoutMs: 180000, log, slot: opts.slot });
         results.steps.push({ index, kind, ok: true, ms: Date.now() - started });
         return;
       }
@@ -296,6 +298,10 @@ async function main() {
   }
 
   const snap = `pre-${suiteName.replace(/[^a-z0-9_-]+/gi, '-')}`;
+  if (opts.slot) {
+    prepareTestSlot(opts.slot);
+    log(`test slot: SLOT${opts.slot}.sav cloned from SLOT1.sav (removed afterwards)`);
+  }
   snapshot(snap);
   const saves = backupSaves('pre');
   globalThis.__isolation = { snap, saves: true, keep: opts.keep };
@@ -316,7 +322,7 @@ async function main() {
   let attempt = 0;
   for (;;) {
     try {
-      await waitWorld({ log });
+      await waitWorld({ log, slot: opts.slot });
       for (const name of suite.mods || []) {
         const manifest = readManifest(name);
         if (manifest.autoDeploy) deployMod(name, log);
@@ -342,7 +348,7 @@ async function main() {
       await sleep(4000);
       launchGame();
       await waitBridge(120000);
-      await arm();
+      await arm(120, opts.slot);
       await waitWorld({ timeoutMs: 180000, log });
     }
   }
@@ -362,7 +368,8 @@ async function main() {
     try {
       restore(snap);
       restoreSaves('pre');
-      const v = verifySaves('pre');
+      const v = verifySaves('pre', opts.slot ? [`SLOT${opts.slot}.sav`] : []);
+      cleanupTestSlot(opts.slot);
       results.isolation = { snapshot: snap, saveFiles: v.files, restored: v.ok, mismatched: v.bad };
       if (v.ok) log(`isolation restored (AddOns/plugins + ${v.files} save file(s), sha256 verified)`);
       else {
@@ -396,7 +403,8 @@ main().catch(async (ex) => {
     try {
       restore(iso.snap);
       restoreSaves('pre');
-      const v = verifySaves('pre');
+      const v = verifySaves('pre', opts.slot ? [`SLOT${opts.slot}.sav`] : []);
+      cleanupTestSlot(opts.slot);
       results.isolation = { snapshot: iso.snap, saveFiles: v.files, restored: v.ok, mismatched: v.bad, recovered: true };
       console.error(v.ok ? 'isolation restored after failure' : `ISOLATION BROKEN after failure: ${v.bad.join(', ')}`);
     } catch (e2) { console.error(`isolation restore failed: ${e2.message}`); }
