@@ -47,7 +47,7 @@ namespace SephiriaMonitor
         private static int npcRows;
         private static double dealtTotal;
         private static int takenHits;
-        private static double takenTotal, takenMax;
+        private static double takenTotal, takenMax, takenDealt, takenMaxDealt;
         private static double firstT = -1, lastT = -1;
 
         private static readonly Dictionary<string, int> ByResult = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -70,7 +70,7 @@ namespace SephiriaMonitor
                 failTotal = failAbsolute = failDodge = failBlock = failPass = 0;
                 dealtTotal = 0;
                 takenHits = 0;
-                takenTotal = takenMax = 0;
+                takenTotal = takenMax = takenDealt = takenMaxDealt = 0;
                 firstT = lastT = -1;
                 ByResult.Clear(); ByElement.Clear(); ByType.Clear(); ByFrom.Clear();
                 ById.Clear(); ByVictimType.Clear(); ByVictim.Clear(); DeathByKiller.Clear(); Buckets.Clear();
@@ -118,6 +118,7 @@ namespace SephiriaMonitor
         {
             damageRows++;
             double raw = Num(e, "raw", 0);
+            double dealt = Num(e, "dealt", 0);
             string result = Str(e, "result") ?? "?";
             string element = Str(e, "element") ?? "?";
             string dtype = Str(e, "damageType") ?? "?";
@@ -134,7 +135,7 @@ namespace SephiriaMonitor
             bool success = result == "Success";
             if (success)
             {
-                dealtTotal += Num(e, "dealt", 0);
+                dealtTotal += dealt;
             }
             else
             {
@@ -181,6 +182,8 @@ namespace SephiriaMonitor
                 takenHits++;
                 takenTotal += raw;
                 if (raw > takenMax) takenMax = raw;
+                takenDealt += dealt;
+                if (dealt > takenMaxDealt) takenMaxDealt = dealt;
             }
 
             if (t >= 0)
@@ -274,9 +277,11 @@ namespace SephiriaMonitor
                     .Add("pass", failPass));
                 root.Add("playerTaken", SephiriaMonitor.Json.Obj()
                     .Add("hits", takenHits)
-                    .Add("total", Math.Round(takenTotal, 1))
-                    .Add("max", Math.Round(takenMax, 1))
-                    .Add("avg", takenHits == 0 ? 0 : Math.Round(takenTotal / takenHits, 1)));
+                    .Add("rawTotal", Math.Round(takenTotal, 1))
+                    .Add("dealtTotal", Math.Round(takenDealt, 1))
+                    .Add("max", Math.Round(takenMaxDealt, 1))
+                    .Add("avg", takenHits == 0 ? 0 : Math.Round(takenDealt / takenHits, 2))
+                    .Add("total", Math.Round(takenTotal, 1)));
 
                 root.Add("byResult", IntMap(ByResult));
                 root.Add("byElement", IntMap(ByElement));

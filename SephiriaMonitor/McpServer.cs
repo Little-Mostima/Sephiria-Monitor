@@ -204,7 +204,19 @@ namespace SephiriaMonitor
                         return Raw(sb.ToString());
                     }
                 case "options":
-                    return Raw("/modoptions");
+                    {
+                        string set = Str(args, "set");
+                        if (!string.IsNullOrEmpty(set))
+                        {
+                            var sb = new StringBuilder("/modoptions?set=").Append(Uri.EscapeDataString(set));
+                            string mod = Str(args, "mod");
+                            if (!string.IsNullOrEmpty(mod)) sb.Append("&mod=").Append(Uri.EscapeDataString(mod));
+                            string value = Str(args, "value");
+                            sb.Append("&value=").Append(Uri.EscapeDataString(value ?? ""));
+                            return Raw(sb.ToString());
+                        }
+                        return Raw("/modoptions");
+                    }
                 case "l10n":
                     {
                         var sb = new StringBuilder("/l10n?limit=").Append(ClampInt(args, "limit", 40, 1, 200));
@@ -318,9 +330,11 @@ namespace SephiriaMonitor
 
         private static string Logs(JObject args)
         {
-            var sb = new StringBuilder("/logs?n=").Append(ClampInt(args, "n", 60, 1, 500));
+            bool incremental = args["after"] != null;
+            var sb = new StringBuilder("/logs?n=").Append(ClampInt(args, "n", incremental ? 200 : 60, 1, 500));
             string type = Str(args, "type");
             if (!string.IsNullOrEmpty(type)) sb.Append("&type=").Append(Uri.EscapeDataString(type));
+            if (incremental) sb.Append("&after=").Append(ClampInt(args, "after", 0, 0, int.MaxValue));
             return Raw(sb.ToString());
         }
 
@@ -333,6 +347,28 @@ namespace SephiriaMonitor
                     return Raw("/saves");
                 case "title":
                     return Raw("/title");
+                case "key":
+                    {
+                        string key = Str(args, "key");
+                        if (string.IsNullOrEmpty(key)) return "{\"error\":\"key is required\"}";
+                        var sb = new StringBuilder("/savekey?key=").Append(Uri.EscapeDataString(key));
+                        string scope = Str(args, "scope");
+                        if (!string.IsNullOrEmpty(scope)) sb.Append("&scope=").Append(Uri.EscapeDataString(scope));
+                        string set = Str(args, "set");
+                        if (!string.IsNullOrEmpty(set)) sb.Append("&set=").Append(Uri.EscapeDataString(set));
+                        string type = Str(args, "type");
+                        if (!string.IsNullOrEmpty(type)) sb.Append("&type=").Append(Uri.EscapeDataString(type));
+                        return Raw(sb.ToString());
+                    }
+                case "dump":
+                    {
+                        var sb = new StringBuilder("/savedump?limit=").Append(ClampInt(args, "limit", 60, 1, 400));
+                        string prefix = Str(args, "prefix");
+                        if (!string.IsNullOrEmpty(prefix)) sb.Append("&prefix=").Append(Uri.EscapeDataString(prefix));
+                        string scope = Str(args, "scope");
+                        if (!string.IsNullOrEmpty(scope)) sb.Append("&scope=").Append(Uri.EscapeDataString(scope));
+                        return Raw(sb.ToString());
+                    }
                 case "enter":
                     {
                         string res = Raw("/enter");
@@ -477,6 +513,13 @@ namespace SephiriaMonitor
         private static string Db(JObject args)
         {
             string table = Str(args, "table");
+            if (!string.IsNullOrEmpty(table) && table.ToLowerInvariant() == "weaponmap")
+            {
+                var sb = new StringBuilder("/weaponmap?limit=").Append(ClampInt(args, "limit", 200, 1, 500));
+                string qq = Str(args, "q");
+                if (!string.IsNullOrEmpty(qq)) sb.Append("&q=").Append(Uri.EscapeDataString(qq));
+                return Raw(sb.ToString());
+            }
             string dir = Session.Root == null ? null : Path.Combine(Session.Root, "db");
             if (dir == null || !Directory.Exists(dir))
             {
@@ -711,11 +754,12 @@ namespace SephiriaMonitor
                          ["n"] = Prop("integer", "how many, 1-500"),
                          ["kinds"] = Prop("string", "comma separated kinds, e.g. damage,death")
                      })),
-                Tool("sephiria_logs", "In-process Unity log lines (discord-ipc noise filtered).",
-                     Schema(new[] { "n", "type" }, new JObject
+                Tool("sephiria_logs", "In-process Unity log lines (discord-ipc noise filtered). Pass after=<seq> for incremental reads.",
+                     Schema(new[] { "n", "type", "after" }, new JObject
                      {
                          ["n"] = Prop("integer", "line count 1-500"),
-                         ["type"] = Prop("string", "Error|Warning|Log|Exception|Assert")
+                         ["type"] = Prop("string", "Error|Warning|Log|Exception|Assert"),
+                         ["after"] = Prop("integer", "only lines with seq > after (incremental, avoids re-reading)")
                      })),
                 Tool("sephiria_db", "Exported game databases (49 CSV tables). No table: list them. table+q: filter rows.",
                      Schema(new[] { "table", "q", "limit", "offset" }, new JObject

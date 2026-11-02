@@ -118,6 +118,20 @@ async function tool(name, args = {}) {
   try {
     const save = await tool('sephiria_save', { action: 'slots' });
     check('save slots', Array.isArray(save.slots) && save.slots.length === 3, save.slots.map((s) => s.name).join(','));
+
+  const key = await tool('sephiria_save', { action: 'key', key: 'PlayerName' });
+  check('save key read', key.exists === true && typeof key.value === 'string', `${key.key}=${key.value}`);
+
+  const log1 = await tool('sephiria_logs', { n: 3 });
+  const lastSeq = (log1.lines || []).reduce((m, l) => Math.max(m, l.seq || 0), 0);
+  const log2 = await tool('sephiria_logs', { n: 200, after: lastSeq });
+  check('logs incremental', Array.isArray(log2.lines) && log2.lines.every((l) => (l.seq || 0) > lastSeq),
+    `after=${lastSeq} -> ${(log2.lines || []).length} new`);
+
+  const opt = await tool('sephiria_mods', { action: 'options' });
+  const mine = (opt.pages || []).find((p) => p.modId === 'com.surveillance.monitor');
+  check('mod options page', !!mine && (mine.items || []).length >= 2,
+    mine ? `${mine.items.length} items` : 'page missing');
   } catch (e) {
     bad('save', e.message);
   }

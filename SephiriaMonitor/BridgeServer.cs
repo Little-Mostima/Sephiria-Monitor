@@ -359,7 +359,9 @@ namespace SephiriaMonitor
                     case "/object":
                         return ObjectDetail(query);
                     case "/logs":
-                        return LogRing.Tail(int.Parse(Query(query, "n", "60")));
+                        return Has(query, "after")
+                            ? LogRing.Tail(int.Parse(Query(query, "n", "200")), long.Parse(Query(query, "after", "0")))
+                            : LogRing.Tail(int.Parse(Query(query, "n", "60")));
                     case "/events":
                         return Events.Tail(int.Parse(Query(query, "n", "100")), long.Parse(Query(query, "after", "0")), Query(query, "kind", ""));
                     case "/damage":
@@ -417,7 +419,17 @@ namespace SephiriaMonitor
                     case "/patches":
                         return ModOps.Patches(Query(query, "q", ""), Query(query, "owner", ""), Int(query, "limit", 20)).ToString(Newtonsoft.Json.Formatting.None);
                     case "/modoptions":
-                    return ModOptionsBridge.Describe().ToString(Newtonsoft.Json.Formatting.None);
+                        if (Has(query, "set"))
+                        {
+                            return ModOptionsBridge.Set(Query(query, "mod", ModOptionsBridge.ModId), Query(query, "set", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
+                        }
+                        return ModOptionsBridge.Describe().ToString(Newtonsoft.Json.Formatting.None);
+                    case "/weaponmap":
+                        return WeaponOps.Map(Query(query, "q", ""), Int(query, "limit", 200));
+                    case "/savekey":
+                        return SaveOps.Key(Query(query, "key", ""), Query(query, "scope", "meta"), Query(query, "set", ""), Query(query, "type", ""));
+                    case "/savedump":
+                        return SaveOps.Dump(Query(query, "prefix", ""), Query(query, "scope", "meta"), Int(query, "limit", 60));
                 case "/moddata":
                         return ModOps.Data(Query(query, "kind", ""), Query(query, "q", ""), Int(query, "min", 900000), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
                     case "/l10n":

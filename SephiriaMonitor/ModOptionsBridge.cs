@@ -189,6 +189,88 @@ namespace SephiriaMonitor
             }
         }
 
+        /// <summary>Writes a value through the game's own option object (triggers callbacks + persists).</summary>
+        internal static JObject Set(string modId, string key, string value)
+        {
+            JObject res = new JObject();
+            res["modId"] = modId;
+            res["key"] = key;
+            try
+            {
+                Type tRegistry = StateApi.FindType("ModOptionsRegistry");
+                FieldInfo field = tRegistry != null ? tRegistry.GetField("pages", BindingFlags.Static | BindingFlags.NonPublic) : null;
+                IDictionary dict = field != null ? field.GetValue(null) as IDictionary : null;
+                if (dict == null)
+                {
+                    res["error"] = "ModOptionsRegistry not ready";
+                    return res;
+                }
+                object p = dict[modId];
+                if (p == null)
+                {
+                    res["error"] = "page not found: " + modId;
+                    return res;
+                }
+                PropertyInfo itemsProp = p.GetType().GetProperty("Items");
+                IEnumerable list = itemsProp != null ? itemsProp.GetValue(p) as IEnumerable : null;
+                if (list == null)
+                {
+                    res["error"] = "page has no Items";
+                    return res;
+                }
+                foreach (object item in list)
+                {
+                    if (item == null)
+                    {
+                        continue;
+                    }
+                    PropertyInfo kp = item.GetType().GetProperty("Key");
+                    if (kp == null || !string.Equals(Convert.ToString(kp.GetValue(item)), key, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+                    PropertyInfo vp = item.GetType().GetProperty("Value");
+                    if (vp == null)
+                    {
+                        res["error"] = "item has no Value";
+                        return res;
+                    }
+                    Type vt = vp.PropertyType;
+                    object boxed;
+                    if (vt == typeof(bool))
+                    {
+                        boxed = value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    }
+                    else if (vt == typeof(float))
+                    {
+                        boxed = float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                    else if (vt == typeof(int))
+                    {
+                        boxed = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                    else
+                    {
+                        boxed = value;
+                    }
+                    vp.SetValue(item, boxed, null);
+                    res["written"] = true;
+                    res["value"] = boxed.ToString();
+                    break;
+                }
+                if (res["written"] == null)
+                {
+                    res["error"] = "key not found: " + key;
+                }
+            }
+            catch (Exception ex)
+            {
+                Exception inner = ex.InnerException ?? ex;
+                res["error"] = inner.GetType().Name + ": " + inner.Message;
+            }
+            return res;
+        }
+
         /// <summary>Lists every registered page (ours and Workshop mods') with current values.</summary>
         internal static JObject Describe()
         {

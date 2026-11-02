@@ -120,10 +120,36 @@ namespace SephiriaMonitor
             return list;
         }
 
+        public static List<object> Recent(int n, long after)
+        {
+            List<object> list = new List<object>();
+            lock (Gate)
+            {
+                int start = Math.Max(0, Ring.Count - n);
+                for (int i = start; i < Ring.Count; i++)
+                {
+                    Entry e = Ring[i];
+                    if (e.Seq <= after)
+                    {
+                        continue;
+                    }
+                    list.Add(Json.Obj().Add("seq", e.Seq).Add("type", e.Type).Add("msg", e.Message).Add("stack", e.Stack).Add("t", e.T));
+                }
+            }
+            return list;
+        }
+
         public static string Tail(int n)
         {
             return Json.Write(Json.Obj().Add("count", Count).Add("errors", Errors).Add("warnings", Warnings).Add("noise", Noise)
                 .Add("lines", Recent(n)));
+        }
+
+        /// <summary>Incremental tail: only lines with seq &gt; after (0 = all in window).</summary>
+        public static string Tail(int n, long after)
+        {
+            return Json.Write(Json.Obj().Add("count", Count).Add("after", after).Add("errors", Errors).Add("warnings", Warnings).Add("noise", Noise)
+                .Add("lines", Recent(n, after)));
         }
     }
 }
