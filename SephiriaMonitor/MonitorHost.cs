@@ -31,6 +31,7 @@ namespace SephiriaMonitor
             MainThreadPump.Drain();
             Movement.Tick();
             PlayerOps.Tick();
+            ModOptionsBridge.Tick();
             FloorDump.Tick();
             RunTracker.Tick();
             if (MonitorConfig.EnableTitleControl)

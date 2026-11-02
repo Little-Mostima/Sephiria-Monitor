@@ -416,7 +416,9 @@ namespace SephiriaMonitor
                         return ModOps.List().ToString(Newtonsoft.Json.Formatting.None);
                     case "/patches":
                         return ModOps.Patches(Query(query, "q", ""), Query(query, "owner", ""), Int(query, "limit", 20)).ToString(Newtonsoft.Json.Formatting.None);
-                    case "/moddata":
+                    case "/modoptions":
+                    return ModOptionsBridge.Describe().ToString(Newtonsoft.Json.Formatting.None);
+                case "/moddata":
                         return ModOps.Data(Query(query, "kind", ""), Query(query, "q", ""), Int(query, "min", 900000), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
                     case "/l10n":
                         return ModOps.L10n(Query(query, "key", ""), Query(query, "prefix", ""), Query(query, "lang", ""), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);

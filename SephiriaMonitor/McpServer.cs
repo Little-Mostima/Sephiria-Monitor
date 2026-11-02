@@ -203,6 +203,8 @@ namespace SephiriaMonitor
                         if (args["min"] != null) sb.Append("&min=").Append(ClampInt(args, "min", 900000, 0, int.MaxValue));
                         return Raw(sb.ToString());
                     }
+                case "options":
+                    return Raw("/modoptions");
                 case "l10n":
                     {
                         var sb = new StringBuilder("/l10n?limit=").Append(ClampInt(args, "limit", 40, 1, 200));
@@ -783,10 +785,10 @@ namespace SephiriaMonitor
                          ["value"] = Prop("integer", "absolute stat value")
                      })),
                 Tool("sephiria_mods",
-                     "Mod testing probes. action=list: every loaded mod (BepInEx plugins, AddOns folder mods, Workshop packages) with state and dll path. patches: Harmony patches grouped by owner, filter q=method substring or owner=modId. data: rows registered by your mod (id >= min, default 900000) from the boot CSV export. l10n: resolve key= across all languages, or audit prefix= (e.g. ModItem_) and see which languages are missing.",
+                     "Mod testing probes. action=list: every loaded mod (BepInEx plugins, AddOns folder mods, Workshop packages) with state and dll path. patches: Harmony patches grouped by owner, filter q=method substring or owner=modId. data: rows registered by your mod (id >= min, default 900000) from the boot CSV export. options: pages registered in the game Mod Options screen with live values (ours + Workshop mods). l10n: resolve key= across all languages, or audit prefix= (e.g. ModItem_) and see which languages are missing.",
                      Schema(new[] { "action", "q", "owner", "kind", "min", "key", "prefix", "lang", "limit" }, new JObject
                      {
-                         ["action"] = Prop("string", "list|patches|data|l10n (default list)"),
+                         ["action"] = Prop("string", "list|patches|data|l10n|options (default list); options = the game's Mod Options pages and current values"),
                          ["q"] = Prop("string", "patches: method substring; data: name substring"),
                          ["owner"] = Prop("string", "patches: Harmony owner (modId) substring"),
                          ["kind"] = Prop("string", "data: csv table(s), comma separated, e.g. item,weapon,status"),
