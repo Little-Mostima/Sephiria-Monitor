@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using HarmonyLib;
 using UnityEngine;
 
 namespace SephiriaMonitor
@@ -24,6 +25,9 @@ namespace SephiriaMonitor
                 invulnField = typeof(UnitAvatar).GetField("invulnerableCount",
                     BindingFlags.Instance | BindingFlags.NonPublic);
                 MonitorPlugin.LogInfo("PlayerOps: tick mode, invulnerableCount=" + (invulnField != null ? "found" : "missing"));
+                Harmony harmony = new Harmony("com.surveillance.monitor.god");
+                harmony.PatchAll(typeof(GodPatch));
+                MonitorPlugin.LogInfo("PlayerOps: god patch applied on UnitAvatar.ApplyDefense");
             }
             catch (Exception e)
             {
@@ -52,7 +56,7 @@ namespace SephiriaMonitor
             {
                 try
                 {
-                    int want = InvulnMode ? 1 : 0;
+                    int want = 0; // always targetable: damage is zeroed by GodPatch instead
                     if ((int)invulnField.GetValue(p) != want)
                     {
                         invulnField.SetValue(p, want);
@@ -97,7 +101,7 @@ namespace SephiriaMonitor
             PlayerAvatar p = Player();
             if (p != null && invulnField != null)
             {
-                try { invulnField.SetValue(p, InvulnMode ? 1 : 0); } catch { }
+                try { invulnField.SetValue(p, 0); } catch { }
             }
             Dictionary<string, object> root = Json.Obj();
             root["god"] = God;
@@ -106,8 +110,8 @@ namespace SephiriaMonitor
             root["hint"] = !God
                 ? "god mode off (invulnerable flag cleared)"
                 : (InvulnMode
-                    ? "invulnerable pinned: AI cannot target you (UnitAI_NewBasic.cs:1502 skips invulnerable)"
-                    : "heal-only: hp kept full every 0.25s, still targetable");
+                    ? "god mode: still targetable, incoming damage forced to 0"
+                    : "god mode: still targetable, incoming damage forced to 0");
             return Json.Write(root);
         }
 

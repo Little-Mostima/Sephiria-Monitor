@@ -1,17 +1,16 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
-using UnityEngine;
 
 namespace SephiriaMonitor
 {
     /// <summary>
-    /// Registers a page in the game's own "Mod Options" screen (Options -> Mods) for this plugin,
+    /// Registers a page in the game's own "Mod Options" screen (Options -> Gameplay) for this plugin,
     /// so a player can flip debug toggles without touching files. The game API is internal, so
     /// everything here goes through reflection; values persist in DeviceOptions.xml under
     /// "ModOptions:&lt;modId&gt;:&lt;key&gt;" exactly like Workshop mods.
+    /// Two rows only: god mode (targetable, damage 0) and one-hit kill.
     /// </summary>
     internal static class ModOptionsBridge
     {
@@ -22,6 +21,8 @@ namespace SephiriaMonitor
         private static bool gaveUp;
         private static object options;
         private static object page;
+
+        internal static bool OneHitKillEnabled;
 
         internal static void Tick()
         {
@@ -37,7 +38,7 @@ namespace SephiriaMonitor
             {
                 Register();
                 registered = true;
-                MonitorPlugin.LogInfo("ModOptions: registered page " + ModId + " (3 toggles)");
+                MonitorPlugin.LogInfo("ModOptions: page registered for " + ModId);
             }
             catch (Exception e)
             {
@@ -51,11 +52,10 @@ namespace SephiriaMonitor
             Type tOptions = StateApi.FindType("ModOptions");
             Type tRegistry = StateApi.FindType("ModOptionsRegistry");
             Type tToggle = StateApi.FindType("ModToggleOption");
-            Type tSlider = StateApi.FindType("ModSliderOption");
             Type tText = StateApi.FindType("ModOptionText");
-            if (tOptions == null || tRegistry == null || tToggle == null || tSlider == null || tText == null)
+            if (tOptions == null || tRegistry == null || tToggle == null || tText == null)
             {
-                throw new InvalidOperationException("mod options types missing: options=" + (tOptions != null) + " registry=" + (tRegistry != null) + " toggle=" + (tToggle != null) + " slider=" + (tSlider != null) + " text=" + (tText != null));
+                throw new InvalidOperationException("mod options types missing: options=" + (tOptions != null) + " registry=" + (tRegistry != null) + " toggle=" + (tToggle != null) + " text=" + (tText != null));
             }
 
             ConstructorInfo optCtor = tOptions.GetConstructor(
@@ -73,89 +73,36 @@ namespace SephiriaMonitor
                 throw new MissingMethodException("ModOptionsRegistry.GetOrCreate");
             }
             page = getOrCreate.Invoke(null, new[] { options });
+            SetDisplayName(tText, page, DisplayName);
 
-            PropertyInfo displayName = page.GetType().GetProperty("DisplayName");
-            if (displayName != null && displayName.CanWrite)
-            {
-                displayName.SetValue(page, Text(tText, DisplayName));
-            }
+            bool god = AddToggle(tToggle, tText, "god", "上帝模式（敌人能锁定你，但伤害为 0）", false, OnGod);
+            bool oneHit = AddToggle(tToggle, tText, "oneHitKill", "一击必杀（所有伤害 ×1000）", false, OnOneHitKill);
 
-            bool god = AddToggle(tOptions, tToggle, tText, "god", "上帝模式（只回血，敌人仍会索敌）", false, OnGod);
-            bool invuln = AddToggle(tOptions, tToggle, tText, "invuln", "上帝模式：同时无敌（敌人会丢失目标）", false, OnInvuln);
-            bool recordNpc = AddToggle(tOptions, tToggle, tText, "npcDamage", "记录 NPC 互殴伤害（事件量约翻倍）", false, OnRecordNpc);
-            float damage = AddSlider(tOptions, tSlider, tText, "damageBonus", "全伤害加成（%，100000 = 一击必杀）", 0f, 200000f, 0f, 5000f);
-
-            PlayerOps.God = god;
-            PlayerOps.InvulnMode = invuln;
-            Events.SkipNpcDamage = !recordNpc;
-            long existing = 0;
-            try
-            {
-                MethodInfo getInt = options.GetType().GetMethod("GetInt", new[] { typeof(string), typeof(int) });
-                if (getInt != null)
-                {
-                    existing = Convert.ToInt64(getInt.Invoke(options, new object[] { "damageBonus", 0 }));
-                }
-            }
-            catch
-            {
-            }
-            if (existing > 0)
-            {
-                try
-                {
-                    PlayerOps.SetStat("ALLDAMAGEBONUS", (int)existing);
-                }
-                catch (Exception e)
-                {
-                    MonitorPlugin.LogError("ModOptions.damageBonus apply: " + e.Message);
-                }
-            }
-            MonitorPlugin.LogInfo("ModOptions: initial god=" + god + " invuln=" + invuln + " npcDamage=" + recordNpc + " damageBonus=" + damage);
+            PlayerOps.InvulnMode = false;
+            Events.SkipNpcDamage = true; // NPC-vs-NPC noise is backend policy, not a player-facing toggle
+            PlayerOps.GodSet(god, false);
+            OneHitKillEnabled = oneHit;
+            ApplyOneHitKill(oneHit);
+            MonitorPlugin.LogInfo("ModOptions: initial god=" + god + " oneHitKill=" + oneHit);
         }
 
-        private static float AddSlider(Type tOptions, Type tSlider, Type tText, string key, string label, float min, float max, float fallback, float step)
-        {
-            ConstructorInfo ctor = null;
-            ConstructorInfo[] all = tSlider.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            for (int i = 0; i < all.Length; i++)
-            {
-                ParameterInfo[] ps = all[i].GetParameters();
-                if (ps.Length == 8 && ps[2].ParameterType == typeof(float) && ps[3].ParameterType == typeof(float))
-                {
-                    ctor = all[i];
-                    break;
-                }
-            }
-            if (ctor == null)
-            {
-                throw new MissingMethodException("ModSliderOption(ModOptions,string,float,float,float,float,ModOptionText,Action<float>)");
-            }
-            Action<float> changed = delegate (float v) { OnDamageBonus(v); };
-            object def = ctor.Invoke(new object[] { options, key, min, max, fallback, step, Text(tText, label), changed });
-            AddItem(def);
-            PropertyInfo value = def.GetType().GetProperty("Value");
-            object current = value != null ? value.GetValue(def) : fallback;
-            return current is float ? (float)current : fallback;
-        }
-
-        private static void OnDamageBonus(float value)
+        private static void SetDisplayName(Type tText, object target, string text)
         {
             try
             {
-                if (value > 0f)
+                PropertyInfo prop = target.GetType().GetProperty("DisplayName");
+                if (prop != null && prop.CanWrite)
                 {
-                    PlayerOps.SetStat("ALLDAMAGEBONUS", (int)value);
+                    prop.SetValue(target, Text(tText, text));
                 }
-                MonitorPlugin.LogInfo("ModOptions: damageBonus -> " + value);
             }
             catch (Exception e)
             {
-                MonitorPlugin.LogError("ModOptions.damageBonus: " + e.Message);
+                MonitorPlugin.LogInfo("ModOptions.DisplayName: " + e.Message);
             }
         }
 
-        private static bool AddToggle(Type tOptions, Type tToggle, Type tText, string key, string label, bool fallback, Action<bool> changed)
+        private static bool AddToggle(Type tToggle, Type tText, string key, string label, bool fallback, Action<bool> changed)
         {
             ConstructorInfo ctor = null;
             ConstructorInfo[] all = tToggle.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -200,6 +147,33 @@ namespace SephiriaMonitor
             return implicitString.Invoke(null, new object[] { value });
         }
 
+        private static void OnGod(bool on)
+        {
+            PlayerOps.GodSet(on, false);
+            Persist();
+            MonitorPlugin.LogInfo("ModOptions: god -> " + on);
+        }
+
+        private static void OnOneHitKill(bool on)
+        {
+            OneHitKillEnabled = on;
+            ApplyOneHitKill(on);
+            Persist();
+            MonitorPlugin.LogInfo("ModOptions: oneHitKill -> " + on);
+        }
+
+        private static void ApplyOneHitKill(bool on)
+        {
+            try
+            {
+                PlayerOps.SetStat("ALLDAMAGEBONUS", on ? 100000 : 0);
+            }
+            catch (Exception e)
+            {
+                MonitorPlugin.LogError("ModOptions.oneHitKill: " + e.Message);
+            }
+        }
+
         private static void Persist()
         {
             try
@@ -213,36 +187,6 @@ namespace SephiriaMonitor
             {
                 MonitorPlugin.LogError("ModOptions.Persist: " + e.Message);
             }
-        }
-
-        private static void OnGod(bool on)
-        {
-            PlayerOps.God = on;
-            if (!on)
-            {
-                PlayerOps.GodSet(false, null);
-            }
-            else
-            {
-                PlayerOps.GodSet(true, PlayerOps.InvulnMode);
-            }
-            Persist();
-            MonitorPlugin.LogInfo("ModOptions: god -> " + on);
-        }
-
-        private static void OnInvuln(bool on)
-        {
-            PlayerOps.InvulnMode = on;
-            PlayerOps.GodSet(PlayerOps.God || on, on);
-            Persist();
-            MonitorPlugin.LogInfo("ModOptions: invuln -> " + on);
-        }
-
-        private static void OnRecordNpc(bool on)
-        {
-            Events.SkipNpcDamage = !on;
-            Persist();
-            MonitorPlugin.LogInfo("ModOptions: recordNpcDamage -> " + on);
         }
 
         /// <summary>Lists every registered page (ours and Workshop mods') with current values.</summary>
@@ -288,7 +232,7 @@ namespace SephiriaMonitor
                                 }
                                 JObject it = new JObject();
                                 PropertyInfo key = def.GetType().GetProperty("Key");
-                                it["key"] = key != null ? (string)key.GetValue(def) : "";
+                                it["key"] = key != null ? Convert.ToString(key.GetValue(def)) : "";
                                 PropertyInfo label = def.GetType().GetProperty("Label");
                                 if (label != null)
                                 {
@@ -298,12 +242,25 @@ namespace SephiriaMonitor
                                 PropertyInfo kind = def.GetType().GetProperty("Kind");
                                 if (kind != null)
                                 {
-                                    it["kind"] = kind.GetValue(def).ToString();
+                                    object kv = kind.GetValue(def);
+                                    it["kind"] = kv != null ? kv.ToString() : "";
                                 }
-                                PropertyInfo val = def.GetType().GetProperty("Value");
-                                if (val != null && val.CanRead)
+                                PropertyInfo value = def.GetType().GetProperty("Value");
+                                if (value != null)
                                 {
-                                    try { it["value"] = new JValue(val.GetValue(def)); } catch { }
+                                    object vv = value.GetValue(def);
+                                    if (vv is bool b)
+                                    {
+                                        it["value"] = b;
+                                    }
+                                    else if (vv is int n)
+                                    {
+                                        it["value"] = n;
+                                    }
+                                    else
+                                    {
+                                        it["value"] = vv != null ? vv.ToString() : "";
+                                    }
                                 }
                                 items.Add(it);
                             }
