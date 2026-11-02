@@ -1,6 +1,6 @@
-# Sephiria Monitor
+# Sephiria Monitor · 赛菲利亚观测站
 
-**Sephiria 的 mod 制作 + 检测工具链：AI 写 mod → 在真游戏里自动跑回归 → 打包上架。**
+**赛菲利亚观测站：让 AI 实时读游戏状态、做 mod、跑回归、打包工坊。**
 
 让 AI 读得到 mod 需要的事实、驱动得动游戏进档和断言、拿得到结果。能把 mod 做成、测过、发出去：
 
