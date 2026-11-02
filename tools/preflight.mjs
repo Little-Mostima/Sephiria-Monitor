@@ -41,12 +41,12 @@ if (args.includes('--all')) {
     const r = spawnSync(process.execPath, childArgs, { stdio: 'inherit' });
     if (r.status !== 0) failed.push(path.basename(m));
   }
-  console.log(failed.length ? `\nPREFLIGHT FAILED: ${failed.join(', ')}` : `\nPREFLIGHT OK — ${mods.length} mod(s)`);
+  console.log(failed.length ? `\nPREFLIGHT FAILED: ${failed.join(', ')}` : `\nPREFLIGHT OK - ${mods.length} mod(s)`);
   process.exit(failed.length ? 1 : 0);
 }
 const record = (name, ok, detail) => {
   stages.push({ name, ok, detail });
-  if (!asJson) console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+  if (!asJson) console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? '  - ' + detail : ''}`);
 };
 
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -74,7 +74,7 @@ let contentOnly = false;
     if (!/^\d+\.\d+\.\d+$/.test(meta.modVersion || '')) problems.push('modVersion must be semver (x.y.z)');
   }
   // content id guard: two installed content mods must not register the same numeric id
-  // (learned the hard way — a copy-pasted scaffold clobbers the other mod's entries)
+  // (learned the hard way - a copy-pasted scaffold clobbers the other mod's entries)
   {
     const ids = new Map();
     const collect = (root, self) => {
@@ -97,12 +97,12 @@ let contentOnly = false;
       collect(path.join(workRoot, d.name), d.name);
     }
     for (const [id, owners] of ids) {
-      if (owners.size > 1) console.log(`warn  content id ${id} is also used by ${[...owners].filter((o) => o !== selfName).join(', ')} — the two mods will fight over the same entry`);
+      if (owners.size > 1) console.log(`warn  content id ${id} is also used by ${[...owners].filter((o) => o !== selfName).join(', ')} - the two mods will fight over the same entry`);
     }
   }
 
   const suites = exists(path.join(modDir, 'tests')) ? fs.readdirSync(path.join(modDir, 'tests')).filter((n) => n.endsWith('.suite.json')) : [];
-  if (!suites.length) problems.push('no tests/*.suite.json — a mod without a scenario cannot be regressed');
+  if (!suites.length) problems.push('no tests/*.suite.json - a mod without a scenario cannot be regressed');
   record('static', problems.length === 0, problems.join('; ') || `${contentOnly ? 'content-only, ' : csprojs.length + ' csproj, '}${suites.length} suite(s)`);
   if (problems.length) finish();
 }
@@ -127,9 +127,9 @@ if (contentOnly) {
 }
 
 // 3. package + validate the artifact people will actually upload
-//    Mods without workshop.json are guards/fixtures — they are testable but not publishable.
+//    Mods without workshop.json are guards/fixtures - they are testable but not publishable.
 if (!fs.existsSync(path.join(modDir, 'workshop.json'))) {
-  record('package', true, 'skipped (no workshop.json — not a publishable package)');
+  record('package', true, 'skipped (no workshop.json - not a publishable package)');
 } else {
   const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'pack-workshop.mjs'), modDir], { stdio: 'pipe', encoding: 'utf8' });
   if (res.status !== 0) {

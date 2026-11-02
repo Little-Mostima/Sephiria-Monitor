@@ -71,7 +71,7 @@ for (const file of files) {
 if (JSON_OUT) console.log(JSON.stringify({ truth, problems }, null, 2));
 else {
   console.log(`truth  version=${version} catalog=${catalogCount} suites=${suites.length} routes=${routes} mods=${mods}`);
-  if (!problems.length) console.log('DOCCHECK OK — no stale version/count in docs');
+  if (!problems.length) console.log('DOCCHECK OK - no stale version/count in docs');
   else {
     console.log(`DOCCHECK  ${problems.length} stale value(s):`);
     for (const p of problems) console.log(`  ${p.file}:${p.line}  ${p.rule}: found ${p.found}, truth ${p.expect}\n      ${p.text}`);

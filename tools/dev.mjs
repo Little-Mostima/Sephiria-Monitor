@@ -64,7 +64,7 @@ function build() {
 async function reload() {
   const h = await tryJson('/health');
   if (!h || !h.ok) {
-    console.log('  bridge down — nothing to reload (start the game first)');
+    console.log('  bridge down - nothing to reload (start the game first)');
     return false;
   }
   const r = await tryJson('/reload');
@@ -74,7 +74,7 @@ async function reload() {
   }
   const list = r.reloaded || [];
   const mine = list.filter((x) => x && /reload/.test(x.reload || ''));
-  console.log(`  reload: ${list.length} mod(s) answered` + (mine.length ? ` — ${mine.map((x) => `${x.mod}:${x.reload}`).join(', ')}` : ''));
+  console.log(`  reload: ${list.length} mod(s) answered` + (mine.length ? ` - ${mine.map((x) => `${x.mod}:${x.reload}`).join(', ')}` : ''));
   return true;
 }
 
@@ -90,11 +90,11 @@ async function restart() {
 async function cycle(reason) {
   console.log(`\n[${new Date().toLocaleTimeString()}] ${reason}`);
   if (!build()) {
-    console.log('  build failed — keeping the old dll');
+    console.log('  build failed - keeping the old dll');
     return;
   }
   if (!isGameRunning()) {
-    console.log('  game not running — starting it');
+    console.log('  game not running - starting it');
     launchGame({ consoleWindow: false });
     await waitBridge(150000);
     await arm(120);
@@ -121,12 +121,12 @@ const main = async () => {
     const srcChanged = cur[SRC_DIR] !== prev[SRC_DIR];
     prev = cur;
     if (dataChanged.length) {
-      console.log(`\n[${new Date().toLocaleTimeString()}] ${dataChanged.join(', ')} changed — hot reload`);
+      console.log(`\n[${new Date().toLocaleTimeString()}] ${dataChanged.join(', ')} changed - hot reload`);
       await reload();
     }
     if (srcChanged) {
       dirtySrc = true;
-      console.log(`\n[${new Date().toLocaleTimeString()}] src changed — ${apply ? 'rebuilding' : 'queued (run with --apply to rebuild+restart)'}`);
+      console.log(`\n[${new Date().toLocaleTimeString()}] src changed - ${apply ? 'rebuilding' : 'queued (run with --apply to rebuild+restart)'}`);
       if (apply) {
         dirtySrc = false;
         await cycle('src changed');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // What happened to a workshop upload? Combines the live log ring (upload + ticket lines) with
 // the durable on-disk state (ModGuardWorkshop cache, submissions zip), so the answer still works
-// after a restart — the log ring is in-memory only.
+// after a restart - the log ring is in-memory only.
 //
 //   node tools/review-status.mjs                  # auto: match our dll hash against the cache
 //   node tools/review-status.mjs --item 3832391740
@@ -58,7 +58,7 @@ if (fs.existsSync(CACHE)) {
   }
 }
 
-// 2b. workshop.json may pin the item id after the first publish (steamItemId) — that is the
+// 2b. workshop.json may pin the item id after the first publish (steamItemId) - that is the
 // most reliable anchor, because the uploaded dll can be rebuilt later.
 const pinned = new Map();
 for (const mod of fs.existsSync(workDir) ? fs.readdirSync(workDir) : []) {
@@ -128,11 +128,11 @@ if (asJson) {
   console.log(JSON.stringify(out, null, 2));
   process.exit(0);
 }
-console.log(`item      ${out.itemId || '(not found — no cache entry matches a built dll)'}${out.mod ? '  (' + out.mod + ')' : ''}`);
+console.log(`item      ${out.itemId || '(not found - no cache entry matches a built dll)'}${out.mod ? '  (' + out.mod + ')' : ''}`);
 console.log(`status    ${out.status || '(unknown)'}   ← ModGuardWorkshop/<id>.json（持久）`);
 if (out.ticket) console.log(`ticket    ${out.ticket}  ${out.ticketStatus}`);
 for (const s of submissions) console.log(`submit    ${s.mod}/${s.key}.zip  ${s.bytes} B  ${s.mtime}`);
 if (ring.upload) console.log(`upload    ${ring.upload.slice(0, 170)}`);
-if (ring.sameContent) console.log('note      same content already on the item — only the review ticket was re-sent');
+if (ring.sameContent) console.log('note      same content already on the item - only the review ticket was re-sent');
 if (ring.tagWarning) console.log('warning   a tag is not a workshop category (uploads but is filtered out)');
-if (!ring.upload && !out.ticket) console.log('ring      empty (game restarted since the upload) — the durable lines above still apply');
+if (!ring.upload && !out.ticket) console.log('ring      empty (game restarted since the upload) - the durable lines above still apply');

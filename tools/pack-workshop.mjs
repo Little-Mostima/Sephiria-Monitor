@@ -34,7 +34,7 @@ const ws = readJson(path.join(modDir, 'workshop.json'));
 const distDir = path.join(modDir, 'dist');
 // A package may be localization-only (no dll): then metadata.json has no dllFile/entryClass.
 const dll = meta.dllFile ? path.join(distDir, meta.dllFile) : null;
-if (dll && !fs.existsSync(dll)) fail(`missing ${dll} — build the mod first`);
+if (dll && !fs.existsSync(dll)) fail(`missing ${dll} - build the mod first`);
 
 const modId = ws.modId || `com.mostima.${meta.modName.toLowerCase()}`;
 const entryClass = meta.entryClass;
@@ -103,7 +103,7 @@ if (modules.length === 0) fail('package has no modules (need a dllFile, Localiza
 
 const preview = ws.preview || 'thumbnail.png';
 if (fs.existsSync(path.join(modDir, preview))) fs.copyFileSync(path.join(modDir, preview), path.join(pkg, preview));
-else console.warn(`pack: no ${preview} — the workshop page will show an empty thumbnail`);
+else console.warn(`pack: no ${preview} - the workshop page will show an empty thumbnail`);
 
 const forbidden = scanForbidden(pkg);
 if (forbidden.length) fail('package contains files the review rejects: ' + forbidden.join(', '));
@@ -142,7 +142,7 @@ if (!noZip) {
 }
 
 if (zipPath && dll && fs.statSync(zipPath).size > MAX_CODE_BYTES) {
-  fail(`code package is ${(fs.statSync(zipPath).size / 1048576).toFixed(1)} MB — review limit is 20 MB`);
+  fail(`code package is ${(fs.statSync(zipPath).size / 1048576).toFixed(1)} MB - review limit is 20 MB`);
 }
 
 console.log(`packed  ${modId} v${meta.modVersion}`);

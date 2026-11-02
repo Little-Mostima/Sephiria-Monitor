@@ -15,12 +15,12 @@ const failures = [];
 
 function ok(name, detail) {
   pass++;
-  console.log(`  PASS  ${name}${detail ? ' — ' + detail : ''}`);
+  console.log(`  PASS  ${name}${detail ? ' - ' + detail : ''}`);
 }
 function bad(name, detail) {
   fail++;
   failures.push(name);
-  console.log(`  FAIL  ${name}${detail ? ' — ' + detail : ''}`);
+  console.log(`  FAIL  ${name}${detail ? ' - ' + detail : ''}`);
 }
 function check(name, cond, detail) {
   if (cond) ok(name, detail);

@@ -9,6 +9,7 @@
 //   node tools/do.mjs docs                     doc rot check
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
+//   node tools/do.mjs watch [--tier smoke|fast]  re-run the cheap checks whenever a mod or doc changes
 //   node tools/do.mjs clean                    drop test runs / snapshots / build leftovers
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +32,47 @@ const TASKS = {
   docs: (a) => run('doccheck.mjs', a),
   doctor: (a) => run('doctor.mjs', a),
   new: (a) => run('new-mod.mjs', a),
+  watch: (a) => {
+    const tier = a.includes('--tier') ? a[a.indexOf('--tier') + 1] : 'smoke';
+    const roots = [];
+    for (const name of fs.readdirSync(WORK)) {
+      const dir = path.join(WORK, name);
+      if (!fs.existsSync(path.join(dir, 'metadata.json'))) continue;
+      for (const sub of ['src', 'Localization', 'data', 'costume']) {
+        const p = path.join(dir, sub);
+        if (fs.existsSync(p)) roots.push(p);
+      }
+    }
+    const docs = path.join(REPO, '..', '_re');
+    if (fs.existsSync(docs)) roots.push(docs);
+    const stamp = () => {
+      let n = 0;
+      const walk = (p) => {
+        for (const e of fs.readdirSync(p, { withFileTypes: true })) {
+          const q = path.join(p, e.name);
+          if (e.isDirectory()) { if (e.name !== 'obj' && e.name !== 'bin' && e.name !== 'node_modules') walk(q); }
+          else { const st = fs.statSync(q); n += st.size + Math.floor(st.mtimeMs / 1000); }
+        }
+      };
+      for (const r of roots) walk(r);
+      return n;
+    };
+    console.log(`watching ${roots.length} roots (tier ${tier}) - Ctrl+C to stop`);
+    let last = stamp();
+    let running = false;
+    setInterval(() => {
+      if (running) return;
+      const now = stamp();
+      if (now === last) return;
+      last = now;
+      running = true;
+      console.log(`\n[${new Date().toLocaleTimeString()}] change detected -> preflight --all --tier ${tier}`);
+      const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'preflight.mjs'), '--all', '--tier', tier], { stdio: 'inherit' });
+      console.log(res.status === 0 ? 'WATCH OK' : 'WATCH FAILED');
+      running = false;
+      last = stamp();
+    }, 1500);
+  },
   clean: () => {
     const drop = ['_runs', '_state', '_compat'].map((d) => path.join(WORK, d));
     let bytes = 0;

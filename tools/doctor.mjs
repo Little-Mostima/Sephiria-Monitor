@@ -77,7 +77,7 @@ async function getJson(p) {
 // 5 bridge
 {
   const health = await getJson('/health');
-  if (!health) add('bridge', 'warn', `no answer on 127.0.0.1:${PORT} — start the game (and read a save or use /arm)`);
+  if (!health) add('bridge', 'warn', `no answer on 127.0.0.1:${PORT} - start the game (and read a save or use /arm)`);
   else add('bridge', 'ok', `v${health.version} scene=${health.scene} session=${(health.session || '').split('\\').pop()}`);
 }
 

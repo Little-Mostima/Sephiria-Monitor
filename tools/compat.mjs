@@ -80,7 +80,7 @@ function printStatic(mods, res) {
   for (const c of [...hard, ...soft]) {
     console.log(`  ${(c.hard ? 'FAIL' : 'warn').padEnd(4)} ${c.kind.padEnd(22)} ${c.key.padEnd(30)} ${c.mods.join(' + ')}`);
   }
-  if (!hard.length) console.log('  none — no two mods claim the same id / assembly / entryClass / patch target');
+  if (!hard.length) console.log('  none - no two mods claim the same id / assembly / entryClass / patch target');
   return hard.length === 0;
 }
 
@@ -171,7 +171,7 @@ async function combo(mods) {
     report.full = res;
     ok = res.ok && ok;
     if (!res.ok) {
-      console.log('  isolating the culprit — remove one mod at a time:');
+      console.log('  isolating the culprit - remove one mod at a time:');
       for (const drop of usable) {
         const subset = usable.filter((m) => m.name !== drop.name);
         let r;
