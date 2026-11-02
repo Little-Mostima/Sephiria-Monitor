@@ -12,7 +12,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.21.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.22.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -61,6 +61,11 @@ tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<mo
 tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
 tools/doctor.mjs          node doctor.mjs → 环境自检（游戏 / dotnet / 插件版本 / 桥 / 存档 / 模组通道）
 tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则校验产物（preflight 已内置）
+tools/build-mod.mjs       node build-mod.mjs <mod> [--deploy] → 编译 + 复制 metadata + 可选装进 AddOns
+tools/dev.mjs             node dev.mjs <mod> [--apply] → 内循环：数据改动热重载，C# 改动才重启
+tools/doccheck.mjs        node doccheck.mjs → 文档里的版本号/篇数/套件数是否与真值一致
+tools/compat.mjs          node compat.mjs --static|--pairs|--all → 模组间冲突扫描与共存回归
+tools/do.mjs              node do.mjs build|test|fast|pack|release|compat|docs|doctor|new|clean
 tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
 ```
 
@@ -158,7 +163,7 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version 与仓库 Version 一致（当前 0.21.0）
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version 与仓库 Version 一致（当前 0.22.0）
 node tools\selfcheck.mjs                            # 期望 24 passed, 0 failed
 ```
 
@@ -238,6 +243,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 | 版本 | 变更 |
 | --- | --- |
+| **0.22.0** | **内循环与门禁**：`POST /reload`（对已加载 mod 反射调用 `ReloadData()`，改数据不重启）、`tools/dev.mjs` 热重载循环、`tools/build-mod.mjs` 统一编译、`tools/doccheck.mjs` 文档防腐、`tools/do.mjs` 统一入口、套件 `--tier smoke/fast/full`、存档隔离 sha256 复核 |
 | **0.21.0** | **mod 工坊工具链**：`tools/runner`（JSON 套件驱动实机回归）、`tools/preflight.mjs`（一键门禁）、`tools/pack-workshop.mjs`（工坊打包）、`tools/new-mod.mjs`（骨架生成）；桥补 `/engravings`（服务端专属附魔状态）与文档同步 |
 | **0.19.0** | **自动进档改成双钥匙、一次性**：配置 `[title] AutoEnter` 默认 `false`（总开关），且必须存在标记文件 `BepInEx\plugins\SephiriaMonitor\autoenter.on`（内含 2 小时过期时间戳）才会进档；进档后插件自己删除标记，且**每个进程只触发一次**——退回主界面不会再被拽进存档。新增 `/arm?minutes=` `/disarm` |
 | **0.18.0** | 测 mod 三件能力补齐：`/savekey` `/savedump`（读写存档键）、`/modoptions?set=`（写 mod 设置）、`/logs?after=`（增量日志）；`/combat.playerTaken` 改为按 `dealt` 统计（另给 `rawTotal`） |

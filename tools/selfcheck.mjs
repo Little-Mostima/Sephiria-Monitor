@@ -102,7 +102,9 @@ async function tool(name, args = {}) {
 
   try {
     const hooks = await tool('sephiria_hooks', { q: 'applydamage', limit: 2 });
-    check('hooks catalogue', hooks.total > 50 && hooks.hooks.length > 0, `${hooks.total} hooks, matched ${hooks.matched}`);
+    const reload = await getJson('/reload');
+check('reload hook', reload && typeof reload.count === 'number' && Array.isArray(reload.reloaded), `${reload && reload.count} mod(s) answered`);
+check('hooks catalogue', hooks.total > 50 && hooks.hooks.length > 0, `${hooks.total} hooks, matched ${hooks.matched}`);
     check('hooks callers', hooks.hooks.some((h) => (h.callers || []).length > 0), 'call sites present');
   } catch (e) {
     bad('hooks', e.message);

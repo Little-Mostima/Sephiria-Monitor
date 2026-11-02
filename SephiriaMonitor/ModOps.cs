@@ -705,5 +705,54 @@ namespace SephiriaMonitor
         {
             return Math.Round((double)v, 2);
         }
+
+        /// <summary>Soft reload: call ReloadData() on every loaded mod that exposes it (no restart).</summary>
+        public static JObject Reload()
+        {
+            var arr = new JArray();
+            try
+            {
+                foreach (var l in AddOnLoader.LoadedMods)
+                {
+                    if (l == null || l.Instance == null) continue;
+                    arr.Add(InvokeReload(l.Instance));
+                }
+            }
+            catch (Exception e) { arr.Add(new JObject { ["channel"] = "addons", ["error"] = e.Message }); }
+            try
+            {
+                foreach (var act in WorkshopModRuntime.Active.Values)
+                {
+                    if (act == null) continue;
+                    foreach (var m in act.Modules)
+                    {
+                        if (m == null || m.Instance == null) continue;
+                        arr.Add(InvokeReload(m.Instance));
+                    }
+                }
+            }
+            catch (Exception e) { arr.Add(new JObject { ["channel"] = "workshop", ["error"] = e.Message }); }
+            return new JObject { ["count"] = arr.Count, ["reloaded"] = arr };
+        }
+
+        private static JObject InvokeReload(HorayModBase instance)
+        {
+            Type t = instance.GetType();
+            MethodInfo m = t.GetMethod("ReloadData", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            if (m == null)
+            {
+                return new JObject { ["mod"] = t.Name, ["reload"] = "skipped", ["reason"] = "no public ReloadData()" };
+            }
+            try
+            {
+                object r = m.Invoke(instance, null);
+                return new JObject { ["mod"] = t.Name, ["reload"] = "ok", ["result"] = r == null ? "" : r.ToString() };
+            }
+            catch (Exception e)
+            {
+                Exception inner = e.InnerException ?? e;
+                return new JObject { ["mod"] = t.Name, ["reload"] = "error", ["error"] = inner.GetType().Name + ": " + inner.Message };
+            }
+        }
     }
 }

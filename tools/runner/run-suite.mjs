@@ -14,7 +14,7 @@ import path from 'node:path';
 import {
   REPO, WORK, GAME, SAVES, health, get, getJson, tryJson, waitFor, sleep,
   ensureRunning, waitWorld, arm, disarm, killGame, killGameAndWait, launchGame, waitBridge,
-  snapshot, restore, backupSaves, restoreSaves, deployMod, undeployMod,
+  snapshot, restore, backupSaves, restoreSaves, verifySaves, hashFiles, deployMod, undeployMod,
   readManifest, modDir, pick, compare, numDiff, artifactsDir, captureArtifacts,
   isGameRunning, copyDir, installPackage, removePackage,
 } from './lib.mjs';
@@ -26,6 +26,7 @@ const opts = {
   keep: argv.includes('--keep'),
   watchdog: !argv.includes('--no-watchdog'),
   retries: 1,
+  tier: (() => { const i = argv.indexOf('--tier'); return i >= 0 ? argv[i + 1] : null; })(),
   verbose: argv.includes('--verbose'),
 };
 for (let i = 0; i < argv.length; i++) {
@@ -33,7 +34,7 @@ for (let i = 0; i < argv.length; i++) {
 }
 const suitePath = argv.find((a) => !a.startsWith('--'));
 if (!suitePath) {
-  console.error('usage: node tools/runner/run-suite.mjs <suite.json> [--baseline] [--json] [--keep] [--no-watchdog] [--retries N]');
+  console.error('usage: node tools/runner/run-suite.mjs <suite.json> [--baseline] [--json] [--keep] [--no-watchdog] [--retries N] [--tier smoke|fast]');
   process.exit(2);
 }
 
@@ -297,7 +298,8 @@ async function main() {
   const snap = `pre-${suiteName.replace(/[^a-z0-9_-]+/gi, '-')}`;
   snapshot(snap);
   const saves = backupSaves('pre');
-  log(`isolated: snapshot ${snap}, ${saves.files.length} save file(s) backed up`);
+  globalThis.__isolation = { snap, saves: true, keep: opts.keep };
+  log(`isolated: snapshot ${snap}, ${saves.files.length} save file(s) backed up (sha256 recorded)`);
 
   let ctx = { last: null, baseline: { values: {} } };
   const needsBaseline = suite.steps.some((st) => st && typeof st === "object" && "baseline" in st);
@@ -360,8 +362,15 @@ async function main() {
     try {
       restore(snap);
       restoreSaves('pre');
-      log('isolation restored (AddOns/plugins + saves)');
+      const v = verifySaves('pre');
+      results.isolation = { snapshot: snap, saveFiles: v.files, restored: v.ok, mismatched: v.bad };
+      if (v.ok) log(`isolation restored (AddOns/plugins + ${v.files} save file(s), sha256 verified)`);
+      else {
+        results.ok = false;
+        log(`ISOLATION BROKEN: ${v.bad.join(', ')} differ from the backup — stop and inspect work/_state/saves-pre`);
+      }
     } catch (ex) {
+      results.ok = false;
       log(`restore warning: ${ex.message}`);
     }
   } else {
@@ -382,6 +391,16 @@ async function main() {
 main().catch(async (ex) => {
   results.ok = false;
   results.error = ex.message;
+  const iso = globalThis.__isolation;
+  if (iso && iso.saves && !iso.keep) {
+    try {
+      restore(iso.snap);
+      restoreSaves('pre');
+      const v = verifySaves('pre');
+      results.isolation = { snapshot: iso.snap, saveFiles: v.files, restored: v.ok, mismatched: v.bad, recovered: true };
+      console.error(v.ok ? 'isolation restored after failure' : `ISOLATION BROKEN after failure: ${v.bad.join(', ')}`);
+    } catch (e2) { console.error(`isolation restore failed: ${e2.message}`); }
+  }
   let dir = null;
   try { dir = artifactsDir(suiteName); await captureArtifacts(dir); } catch {}
   console.error(`FAILED: ${ex.message}`);

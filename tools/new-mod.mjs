@@ -6,9 +6,9 @@
 //
 // Produces work/pocket-map/ (never committed: work/ is gitignored) with:
 //   metadata.json (flat AddOns schema)  mod.json (runner deploy manifest)
-//   build.ps1 + src/<Name>.csproj       src/<Name>Mod.cs (HorayModBase skeleton)
+//   src/<Name>.csproj + <Name>Mod.cs    (公共配置在 work/Directory.Build.props；构建用 tools/build-mod.mjs)
 //   tests/smoke.suite.json              workshop.json (workshop page fields)
-// Next:  cd work/<name>; .\build.ps1   then   node tools/preflight.mjs work/<name>
+// Next:  node tools/build-mod.mjs <name> --deploy   then   node tools/preflight.mjs work/<name>
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -74,7 +74,7 @@ if (kind === 'content') {
   fs.mkdirSync(dir, { recursive: true });
   copyDir(TPL, dir);
   console.log(`created work/${folder}/  (content pack: 2 potions, a charm, a weapon, a tablet)`);
-  console.log(`  next:  cd work/${folder}; .\\build.ps1`);
+  console.log(`  next:  node tools/build-mod.mjs ${folder} --deploy`);
   console.log(`         node tools/preflight.mjs work/${folder}`);
   process.exit(0);
 }
@@ -125,97 +125,10 @@ write('src/' + Pascal + '.csproj', `<Project Sdk="Microsoft.NET.Sdk">
   </ItemGroup>
 </Project>`);
 
-write('build.ps1', `param([switch]$NoDeploy)
-$ErrorActionPreference = "Stop"
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$dotnet = if ($env:SEPHIRIA_DOTNET) { $env:SEPHIRIA_DOTNET } else { "dotnet" }
-$game = if ($env:SEPHIRIA_GAME_DIR) { $env:SEPHIRIA_GAME_DIR } else { "D:\\steam\\steamapps\\common\\Sephiria" }
-$env:SEPHIRIA_GAME_DIR = $game
-& $dotnet build (Join-Path $here "src\\${Pascal}.csproj") -c Release -v q --nologo
-if ($LASTEXITCODE -ne 0) { throw "build failed" }
-New-Item -ItemType Directory -Force -Path (Join-Path $here "dist") | Out-Null
-Copy-Item (Join-Path $here "metadata.json") (Join-Path $here "dist") -Force
-if (-not $NoDeploy) {
-  $dst = Join-Path $game "AddOns\\${Pascal}"
-  New-Item -ItemType Directory -Force -Path $dst | Out-Null
-  Copy-Item (Join-Path $here "dist\\*") $dst -Force
-  Write-Host "deployed to $dst" -ForegroundColor Green
-}`);
-
-write('src/' + Pascal + 'Mod.cs', `using System;
-using UnityEngine;
-
-namespace ${Pascal}
-{
-    /// <summary>
-    /// TODO: one sentence on what this changes and why the player notices.
-    /// Loaded only when MainWorld appears; do not touch anything in the constructor.
-    /// </summary>
-    public class ${Pascal}Mod : HorayModBase
-    {
-        internal const string Tag = "[${Pascal}]";
-        private static bool _done;
-
-        protected override void OnModLoaded()
-        {
-            HorayModAPI.OnPlayerAvatarSpawnedServerside += OnAvatar;
-            Debug.Log(Tag + " loaded v" + metadata.modVersion);
-        }
-
-        protected override void OnModUnloaded()
-        {
-            HorayModAPI.OnPlayerAvatarSpawnedServerside -= OnAvatar;
-            Debug.Log(Tag + " unloaded");
-        }
-
-        private static void OnAvatar(UnitAvatar avatar)
-        {
-            if (_done) return;
-            _done = true;
-            // TODO: the actual behaviour. Read state through public APIs where possible;
-            // patch private methods with Harmony only when there is no public seam.
-            Debug.Log(Tag + " avatar ready: " + (avatar == null ? "null" : avatar.name));
-        }
-    }
-}`);
-
-write('tests/smoke.suite.json', JSON.stringify({
-  name: 'smoke',
-  note: `最小回归：加载 ${Pascal} 后游戏能进世界、mod 打日志、关键观测点可读。把 TODO 换成真正的断言。`,
-  steps: [
-    { restart: true },
-    { expect: { path: '/health', field: 'scene', op: '==', value: 'MainWorld', timeoutMs: 240000 } },
-    { log: { n: 600, contains: `[${Pascal}] loaded` } },
-    { log: { n: 600, contains: `[${Pascal}] avatar ready` } },
-    { expect: { path: '/state', field: 'hp', op: '>', value: 0 } },
-  ],
-}, null, 2));
-
-write('workshop.json', JSON.stringify({
-  modId,
-  title: { 'zh-CN': Pascal, 'en-US': Pascal },
-  description: { 'zh-CN': 'TODO: 一句话说清它改了什么。', 'en-US': 'TODO: one sentence.' },
-  tags: ['QoL'],
-  author,
-  preview: 'thumbnail.png',
-  multiplayer: { installation: 'everyone' },
-}, null, 2));
-
-write('README.md', `# ${Pascal}
-
-- 目标：TODO
-- 观测点：TODO（能不能用 /state /objects /inventory 看到结果？看不到就先加读点）
-- 套件：\`tests/smoke.suite.json\`
-
-\`\`\`powershell
-.\\build.ps1                                        # 编译 + 装进 AddOns
-node ..\\..\\tools\\preflight.mjs work\\${folder}       # 静态 → 编译 → 打包 → 套件
-\`\`\`
-`);
 
 console.log(`scaffolded work/${folder}`);
 console.log(`  entry   ${Pascal}.${Pascal}Mod   modId ${modId}`);
 console.log('next:');
-console.log(`  cd work/${folder} ; .\\build.ps1`);
+console.log(`  next:  node tools/build-mod.mjs ${folder} --deploy`);
 console.log(`  node tools/preflight.mjs work/${folder}`);
 console.log('  node tools/new-mod.mjs is idempotent-safe: it refuses to overwrite an existing folder');
