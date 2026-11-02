@@ -38,6 +38,41 @@ public static class WinFocus {
     GetWindowText(h, sb, 256);
     return sb.ToString().IndexOf("Sephiria", StringComparison.OrdinalIgnoreCase) >= 0;
   }
+
+  // ---- hidden desktop: the game's windows never appear on the interactive desktop ----
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  public struct STARTUPINFO {
+    public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+    public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+    public short wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+  }
+  [StructLayout(LayoutKind.Sequential)]
+  public struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+  [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+  static extern IntPtr CreateDesktop(string name, IntPtr dev, IntPtr dm, int flags, uint access, IntPtr sa);
+  [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+  static extern bool CreateProcess(string app, string cmd, IntPtr pa, IntPtr ta, bool inherit, uint flags,
+    IntPtr env, string dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+  public static IntPtr Desk;
+  public static int Pid;
+  public static string LaunchOnDesktop(string exe, string workdir, string desktop) {
+    Desk = CreateDesktop(desktop, IntPtr.Zero, IntPtr.Zero, 0, 0x10000000, IntPtr.Zero);
+    if (Desk == IntPtr.Zero) return "CreateDesktop failed: " + Marshal.GetLastWin32Error();
+    var si = new STARTUPINFO();
+    si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+    si.lpDesktop = desktop;
+    si.dwFlags = 1;          // STARTF_USESHOWWINDOW
+    si.wShowWindow = 1;      // SW_SHOWNORMAL — irrelevant on an invisible desktop
+    PROCESS_INFORMATION pi;
+    if (!CreateProcess(exe, null, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, workdir, ref si, out pi))
+      return "CreateProcess failed: " + Marshal.GetLastWin32Error();
+    Pid = pi.dwProcessId;
+    return "ok pid=" + Pid;
+  }
+  public static bool Alive() {
+    try { return !System.Diagnostics.Process.GetProcessById(Pid).HasExited; } catch { return false; }
+  }
+
   public static int Minimize(uint pid) {
     int n = 0;
     EnumWindows((h, l) => {
@@ -108,4 +143,36 @@ export function setConsoleWindow(enabled) {
   } catch {
     return false;
   }
+}
+
+/** Name of the private desktop the agent-launched game lives on. */
+export const HIDDEN_DESKTOP = 'SephiriaHidden';
+
+/**
+ * Launch the game on a private desktop. Its windows are created there instead of on the
+ * interactive desktop, so nothing flashes and the foreground window never changes — no race with
+ * the minimise loop, no focus steal. The helper PowerShell process also keeps the desktop object
+ * alive for as long as the game runs (a desktop dies with its last handle).
+ */
+export function launchHidden({ exe, workdir, keepAliveMs = 6 * 60 * 60 * 1000 } = {}) {
+  const body = `
+$r = [WinFocus]::LaunchOnDesktop('${(exe || '').replace(/'/g, "''")}', '${(workdir || '').replace(/'/g, "''")}', '${HIDDEN_DESKTOP}')
+Write-Output $r
+$deadline = (Get-Date).AddMilliseconds(${keepAliveMs})
+while ([WinFocus]::Alive() -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+`;
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Add-Type -TypeDefinition @'\n${PS_TYPE}\n'@\n${body}`], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+    windowsHide: true,
+  });
+  child.unref();
+  return child;
+}
+
+/** Is the Sephiria process running at all (any desktop)? */
+export function gamePid() {
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    '(Get-Process Sephiria -ErrorAction SilentlyContinue | Select-Object -First 1).Id'], { encoding: 'utf8', windowsHide: true });
+  const n = parseInt(String(r.stdout || '').trim(), 10);
+  return Number.isFinite(n) ? n : null;
 }

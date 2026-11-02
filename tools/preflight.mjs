@@ -50,31 +50,35 @@ const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const exists = (p) => fs.existsSync(p);
 
 // 1. static checks
+let contentOnly = false;
 {
   const problems = [];
-  for (const f of ['metadata.json', 'mod.json', path.join('src', path.basename(modDir) + '.csproj')]) {
-    if (!exists(path.join(modDir, f))) {
-      // csproj name is not derivable reliably, so only require it when exactly one exists
-      if (!f.endsWith('.csproj')) problems.push('missing ' + f);
-    }
+  // workshop.json is optional: fixtures (control suites, guards) have none and legitimately skip packaging.
+  for (const f of ['metadata.json', 'mod.json']) {
+    if (!exists(path.join(modDir, f))) problems.push('missing ' + f);
   }
   const csprojs = exists(path.join(modDir, 'src')) ? fs.readdirSync(path.join(modDir, 'src')).filter((n) => n.endsWith('.csproj')) : [];
-  if (csprojs.length !== 1) problems.push(`expected exactly one .csproj in src/, found ${csprojs.length}`);
+  // A package with no code (translations / data only) has no csproj and no dllFile: that is legal.
+  contentOnly = csprojs.length === 0;
+  if (!contentOnly && csprojs.length !== 1) problems.push(`expected exactly one .csproj in src/, found ${csprojs.length}`);
   let meta = null;
   try { meta = readJson(path.join(modDir, 'metadata.json')); } catch { problems.push('metadata.json is not valid JSON'); }
   if (meta) {
-    for (const k of ['modName', 'modVersion', 'modAuthor', 'dllFile', 'entryClass']) if (!meta[k]) problems.push('metadata.json missing ' + k);
+    const required = contentOnly ? ['modName', 'modVersion', 'modAuthor'] : ['modName', 'modVersion', 'modAuthor', 'dllFile', 'entryClass'];
+    for (const k of required) if (!meta[k]) problems.push('metadata.json missing ' + k);
     if (meta.entryClass && !/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(meta.entryClass)) problems.push('entryClass does not look like a type name');
     if (!/^\d+\.\d+\.\d+$/.test(meta.modVersion || '')) problems.push('modVersion must be semver (x.y.z)');
   }
   const suites = exists(path.join(modDir, 'tests')) ? fs.readdirSync(path.join(modDir, 'tests')).filter((n) => n.endsWith('.suite.json')) : [];
   if (!suites.length) problems.push('no tests/*.suite.json — a mod without a scenario cannot be regressed');
-  record('static', problems.length === 0, problems.join('; ') || `${csprojs.length} csproj, ${suites.length} suite(s)`);
+  record('static', problems.length === 0, problems.join('; ') || `${contentOnly ? 'content-only, ' : csprojs.length + ' csproj, '}${suites.length} suite(s)`);
   if (problems.length) finish();
 }
 
 // 2. build
-if (!skipBuild) {
+if (contentOnly) {
+  record('build', true, 'skipped (content-only package: no src/)');
+} else if (!skipBuild) {
   const script = path.join(modDir, 'build.ps1');
   const res = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], { stdio: 'pipe', encoding: 'utf8' });
   const out = ((res.stdout || '') + (res.stderr || '')).trim().split('\n').slice(-3).join(' | ');

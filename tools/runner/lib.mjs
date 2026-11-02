@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startMinimizer, minimizeGameNow, setConsoleWindow } from './focus.mjs';
+import { startMinimizer, minimizeGameNow, setConsoleWindow, launchHidden } from './focus.mjs';
 export { minimizeGameNow, setConsoleWindow, startMinimizer } from './focus.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -135,10 +135,10 @@ export function killGame() {
 
 // Launch and wait for the bridge. If nothing appears and the log never advanced, the launcher
 // probably lost the race against Steam (or a crashed instance still held the lock): kill and retry once.
-export async function launchAndWait({ timeoutMs = 180000, log = () => {}, consoleWindow = false } = {}) {
+export async function launchAndWait({ timeoutMs = 180000, log = () => {}, consoleWindow = false, hidden } = {}) {
   const playerLog = path.join(os.homedir(), 'AppData', 'LocalLow', 'TEAMHORAY', 'Sephiria', 'Player.log');
   const before = fs.existsSync(playerLog) ? fs.statSync(playerLog).mtimeMs : 0;
-  launchGame({ consoleWindow });
+  launchGame({ consoleWindow, hidden });
   try {
     return await waitBridgeMinimizing(timeoutMs);
   } catch (e) {
@@ -147,18 +147,31 @@ export async function launchAndWait({ timeoutMs = 180000, log = () => {}, consol
     log('bridge never appeared; killing and relaunching once');
     killGame();
     await sleep(2000);
-    launchGame({ consoleWindow });
+    launchGame({ consoleWindow, hidden });
     return waitBridgeMinimizing(timeoutMs);
   }
 }
 
-export function launchGame({ consoleWindow = false } = {}) {
-  // Launch the exe directly, not steam://rungameid: Steam pops its own "starting / syncing cloud"
-  // dialog, and that dialog steals focus too. Steam itself must be running for Steamworks init.
-  // The BepInEx log window is switched off by default (logs stay in LogOutput.log and /logs).
+export function launchGame({ consoleWindow = false, hidden = !process.env.SEPHIRIA_VISIBLE } = {}) {
+  // Three layers of "do not disturb", strongest first:
+  //   1. hidden=true (default): the game is created on a private window station desktop, so its
+  //      windows exist but are not on the interactive desktop at all — no flash, no focus steal,
+  //      and no race with the minimise loop. SEPHIRIA_VISIBLE=1 opts out.
+  //   2. launch the exe directly, not steam://rungameid: Steam pops its own "starting / syncing
+  //      cloud" dialog and that steals focus too. Steam itself must still be running.
+  //   3. the BepInEx console window is switched off (logs stay in LogOutput.log and /logs), and a
+  //      minimise loop runs as a safety net for the visible-launch path.
   if (!consoleWindow) setConsoleWindow(false);
-  startMinimizer(240);
   const exe = path.join(GAME, 'Sephiria.exe');
+  if (hidden && fs.existsSync(exe)) {
+    try {
+      launchHidden({ exe, workdir: GAME });
+      return;
+    } catch {
+      // fall through to the visible-but-minimised path
+    }
+  }
+  startMinimizer(240);
   if (fs.existsSync(exe)) {
     // spawnSync + `start` returns right away and leaves no pending libuv handle (that dangling
     // handle is what caused `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` on exit).
@@ -168,7 +181,7 @@ export function launchGame({ consoleWindow = false } = {}) {
   spawnSync('cmd.exe', ['/c', 'start', '', STEAM_URL], { stdio: 'ignore', windowsHide: true, timeout: 15000 });
 }
 
-export async function ensureRunning({ restart = false, log = () => {}, consoleWindow = false } = {}) {
+export async function ensureRunning({ restart = false, log = () => {}, consoleWindow = false, hidden } = {}) {
   if (restart) {
     log('restarting game');
     killGame();
@@ -177,7 +190,7 @@ export async function ensureRunning({ restart = false, log = () => {}, consoleWi
   let h = await health();
   if (!h || !h.ok) {
     log('launching game');
-    h = await launchAndWait({ log });
+    h = await launchAndWait({ log, consoleWindow, hidden });
   }
   log(`bridge ok: plugin ${h.version} · ${h.scene}`);
   return h;

@@ -32,24 +32,27 @@ const fail = (msg) => { console.error('pack: ' + msg); process.exit(1); };
 const meta = readJson(path.join(modDir, 'metadata.json'));
 const ws = readJson(path.join(modDir, 'workshop.json'));
 const distDir = path.join(modDir, 'dist');
-const dll = path.join(distDir, meta.dllFile);
-if (!fs.existsSync(dll)) fail(`missing ${dll} — build the mod first`);
+// A package may be localization-only (no dll): then metadata.json has no dllFile/entryClass.
+const dll = meta.dllFile ? path.join(distDir, meta.dllFile) : null;
+if (dll && !fs.existsSync(dll)) fail(`missing ${dll} — build the mod first`);
 
 const modId = ws.modId || `com.mostima.${meta.modName.toLowerCase()}`;
 const entryClass = meta.entryClass;
-if (!/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(entryClass || '')) fail(`bad entryClass "${entryClass}"`);
+if (dll && !/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(entryClass || '')) fail(`bad entryClass "${entryClass}"`);
 
 const pkg = path.join(outRoot, modId);
 fs.rmSync(pkg, { recursive: true, force: true });
 fs.mkdirSync(pkg, { recursive: true });
-fs.copyFileSync(dll, path.join(pkg, meta.dllFile));
+if (dll) fs.copyFileSync(dll, path.join(pkg, meta.dllFile));
 
-const modules = [{ type: 'dll', path: meta.dllFile, entryClass }];
+const modules = dll ? [{ type: 'dll', path: meta.dllFile, entryClass }] : [];
 const locDir = path.join(modDir, 'Localization');
 if (fs.existsSync(locDir)) {
   fs.cpSync(locDir, path.join(pkg, 'Localization'), { recursive: true });
   modules.push({ type: 'localization', path: 'Localization' });
 }
+
+if (modules.length === 0) fail('package has no modules (need a dllFile or Localization/ folder)');
 
 const preview = ws.preview || 'thumbnail.png';
 if (fs.existsSync(path.join(modDir, preview))) fs.copyFileSync(path.join(modDir, preview), path.join(pkg, preview));
