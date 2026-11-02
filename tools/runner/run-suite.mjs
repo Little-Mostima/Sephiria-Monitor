@@ -148,6 +148,17 @@ async function runStep(step, ctx, index) {
         results.steps.push({ index, kind, ok: true, ms: Date.now() - started });
         return;
       }
+      case 'title': {
+        // Cold start and STAY on the title screen (no /arm), for panels that only exist there
+        // (UI_SteamWorkshopPanel, UI_CloudSaveComparer).
+        log('restarting game to the title screen');
+        killGame();
+        await sleep(4000);
+        launchGame();
+        await waitBridge(120000);
+        log('bridge up, staying at title');
+        break;
+      }
       case 'restart': {
         log('restarting game (watchdog step)');
         killGame();
