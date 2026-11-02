@@ -1,14 +1,45 @@
 # Sephiria Monitor
 
-**一个插件，既是只读监控，也是 MCP 服务器。**
+**一个插件：把 Sephiria 的运行时状态变成 AI 能直接读的数据源；同时是一套 mod 制作、实机回归、工坊打包的工具链。**
 
-装上它、把游戏跑起来，`http://127.0.0.1:47901` 就是一个本地只读数据源。任何 AI 客户端（Claude Desktop / Code、DSH、自写的 agent）都可以通过 **MCP** 或 **普通 GET** 读这里的游戏状态：当前楼层、角色属性、护符连击、伤害统计、事件流、数据库 CSV、存档槽、mod 挂点目录。
+装上它、把游戏跑起来，`http://127.0.0.1:47901` 就是一个本地只读数据源。任何 AI 客户端（Claude Desktop / Code、DSH、自写的 agent）都可以通过 **MCP**（16 个工具）或 **普通 GET**（56 条路由）读游戏状态：当前楼层、角色属性、护符连击、伤害统计、事件流、数据库 CSV、存档槽、mod 挂点目录。
 
 项目目标不是"再做一个内存修改器"，而是**给 mod 作者和 agent 提供一份可信的运行时事实**：数值从游戏对象里现读，不是从缓存快照里翻旧值。
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
 - 版本：插件 **0.21.0**，协议 **MCP 2025-06-18**
+
+---
+
+## 0. 一句话让 AI 装（推荐）
+
+把下面**这一句**原样发给任意能跑终端的 AI（Claude Code / Codex / DSH 等），克隆、编译、部署、启动、自检由它自己完成：
+
+> 把 https://github.com/Little-Mostima/Sephiria-Monitor 装到我的 Sephiria：克隆仓库，用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档进入 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认 `version` 与仓库 `SephiriaMonitor\MonitorPlugin.cs` 里的 `Version` 常量一致、`node tools\selfcheck.mjs` 全部通过，最后把版本号、自检结果和游戏目录告诉我；只允许写 `BepInEx\plugins\SephiriaMonitor\`，不要动存档和 `Sephiria_Data`，缺 .NET SDK 或找不到游戏就先停下问我。
+
+这句话**不写死版本号**：版本以仓库里的 `Version` 常量为准，插件升级后不用改这段。
+
+### 0.1 AI 的执行清单
+
+1. `git clone` 仓库到任意临时目录（或用户指定目录）。
+2. 找 SDK：`dotnet --list-sdks` 有 8.x 才继续；否则停下报告。
+3. 找游戏：存在 `Sephiria.exe` 且同级有 `Sephiria_Data\Managed\Assembly-CSharp.dll`。
+4. `$env:SEPHIRIA_GAME_DIR=<游戏目录>; dotnet build SephiriaMonitor -c Release`。
+5. 停游戏进程（若在跑）→ 建 `BepInEx\plugins\SephiriaMonitor` → 复制 `SephiriaMonitor.dll` + `hooks.json`。
+6. 启动游戏，等到 `GET /health` 返回 `"scene":"MainWorld"`（标题界面不算成功）。
+7. `node tools\selfcheck.mjs`，把 `N passed, M failed` 原样报给用户。
+8. 汇报：版本号、dll 的 sha256 前 16 位、自检结果、MCP 端点 `http://127.0.0.1:47901/mcp`。
+
+### 0.2 装完之后 AI 先调什么
+
+```
+sephiria_health                     # 桥是否活着、版本
+sephiria_brief                      # 一次拿全：对局/玩家/战斗/连击/状态
+sephiria_hooks(q="ApplyDamage")     # 要找挂点时先查这里，别猜签名
+```
+
+手动安装（不交给 AI）见 §3。
 
 ---
 
@@ -27,7 +58,7 @@ SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
   hooks.json              # mod 挂点目录（79 条，随 dll 一起部署）
 tools/
   mcp-stdio.mjs           # 可选：stdio → HTTP 代理（给只支持 stdio 的客户端）
-  selfcheck.mjs           # 端到端自检（23 项）
+  selfcheck.mjs           # 端到端自检（24 项）
   preflight.mjs           # 一个 mod 的上线门禁：静态 → 编译 → 打包 → 跑套件
   pack-workshop.mjs       # 把 work/<mod> 打成工坊包（嵌套 metadata + zip）
   runner/
@@ -116,8 +147,8 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.21.0
-node tools\selfcheck.mjs                            # 期望 23 passed, 0 failed
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version 与仓库 Version 一致（当前 0.21.0）
+node tools\selfcheck.mjs                            # 期望 24 passed, 0 failed
 ```
 
 BepInEx 控制台里应能看到 `[Info :SephiriaMonitor] bridge listening on http://127.0.0.1:47901/`。
@@ -157,7 +188,7 @@ curl -s -X POST http://127.0.0.1:47901/mcp \
   "mcpServers": {
     "sephiria": {
       "command": "node",
-      "args": ["D:\\AscensionMod\\_work\\repo\\tools\\mcp-stdio.mjs"]
+      "args": ["C:\\Tools\\Sephiria-Monitor\\tools\\mcp-stdio.mjs"]
     }
   }
 }
@@ -282,31 +313,3 @@ NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（�
 - 不含任何绕过、注入或修改游戏逻辑的代码；Harmony 只用于读取（`Postfix` 观测）。
 
 MIT License.
-## 10. 一句话让 AI 部署
-
-把下面**这一句**发给任意有终端权限的 AI（Claude Code / Codex / DSH 等），它会自己完成克隆、编译、部署、启动与自检：
-
-> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.19.0、运行 `node tools\selfcheck.mjs` 确认 23 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
-
-如果 AI 需要更明确的边界，可以再补一句：
-
-> 只允许写 `BepInEx\plugins\SephiriaMonitor\` 目录；不要动存档、不要动 `Sephiria_Data`，也不要改 BepInEx 配置；没有 .NET SDK 就先停下问我。
-
-### 10.1 AI 的执行清单（对应上面那句话）
-
-1. `git clone` 仓库到任意临时目录（或用户指定目录）。
-2. 找 SDK：`dotnet --list-sdks` 有 8.x 才继续；否则停下报告。
-3. 找游戏：存在 `Sephiria.exe` 且同级有 `Sephiria_Data\Managed\Assembly-CSharp.dll`。
-4. `$env:SEPHIRIA_GAME_DIR=<游戏目录>; dotnet build SephiriaMonitor -c Release`。
-5. 停游戏进程（若在跑）→ 建 `BepInEx\plugins\SephiriaMonitor` → 复制 `SephiriaMonitor.dll` + `hooks.json`。
-6. 启动游戏，等到 `GET /health` 返回 `scene":"MainWorld"`（标题界面不算成功）。
-7. `node tools\selfcheck.mjs`，把 `N passed, M failed` 原样报给用户。
-8. 汇报：版本号、dll 的 sha256 前 16 位、自检结果、MCP 端点 `http://127.0.0.1:47901/mcp`。
-
-### 10.2 部署完成后 AI 该先调什么
-
-```
-sephiria_health                     # 桥是否活着、版本
-sephiria_brief                      # 一次拿全：对局/玩家/战斗/连击/状态
-sephiria_hooks(q="ApplyDamage")     # 要找挂点时先查这里，别猜签名
-```

@@ -640,7 +640,12 @@ namespace SephiriaMonitor
             }
             catch { }
             candidates.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory ?? ".", "hooks.json"));
-            candidates.Add(@"D:\AscensionMod\_re\MODDEV\hooks.json");
+            try
+            {
+                string envHooks = Environment.GetEnvironmentVariable("SEPHIRIA_HOOKS");
+                if (!string.IsNullOrEmpty(envHooks)) candidates.Add(envHooks);
+            }
+            catch { }
             foreach (string c in candidates)
             {
                 try { if (File.Exists(c)) return c; } catch { }

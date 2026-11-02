@@ -13,7 +13,7 @@ import { spawnSync } from 'node:child_process';
 const asJson = process.argv.includes('--json');
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
 const GAME = process.env.SEPHIRIA_GAME_DIR || 'D:\\steam\\steamapps\\common\\Sephiria';
-const DOTNET = process.env.SEPHIRIA_DOTNET || 'D:\\AscensionMod\\_work\\dotnet\\dotnet.exe';
+const DOTNET = process.env.SEPHIRIA_DOTNET || 'dotnet';
 const SAVES = process.env.SEPHIRIA_SAVES_DIR || path.join(os.homedir(), 'Documents', 'Saved Games', 'Sephiria');
 const PORT = 47901;
 

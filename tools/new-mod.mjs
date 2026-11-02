@@ -128,7 +128,7 @@ write('src/' + Pascal + '.csproj', `<Project Sdk="Microsoft.NET.Sdk">
 write('build.ps1', `param([switch]$NoDeploy)
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$dotnet = if ($env:SEPHIRIA_DOTNET) { $env:SEPHIRIA_DOTNET } else { "D:\\AscensionMod\\_work\\dotnet\\dotnet.exe" }
+$dotnet = if ($env:SEPHIRIA_DOTNET) { $env:SEPHIRIA_DOTNET } else { "dotnet" }
 $game = if ($env:SEPHIRIA_GAME_DIR) { $env:SEPHIRIA_GAME_DIR } else { "D:\\steam\\steamapps\\common\\Sephiria" }
 $env:SEPHIRIA_GAME_DIR = $game
 & $dotnet build (Join-Path $here "src\\${Pascal}.csproj") -c Release -v q --nologo
