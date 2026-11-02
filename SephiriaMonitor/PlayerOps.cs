@@ -146,6 +146,48 @@ namespace SephiriaMonitor
         /// GridInventory.fixedEngravingsOnServer, not in the scene, so /objects cannot see them —
         /// this is the observation point for restore bugs and the regression fixture for engraving-fix.
         /// </summary>
+        /// <summary>Gives the local player items by id (test/ops helper: content mods need a way to
+        /// put their items in hand without walking to a shop).</summary>
+        /// <summary>Reads a custom stat by its string name (the names statuses use, e.g.
+        /// DEBUFF_DAMAGE or HP_STEAL). ECustomStat does not cover these, so /inventory cannot show them.</summary>
+        public static string CustomStat(string name)
+        {
+            PlayerAvatar p = Player();
+            if (p == null) return Json.Write(Json.Obj().Add("error", "no player"));
+            if (string.IsNullOrEmpty(name)) return Json.Write(Json.Obj().Add("error", "name required"));
+            // Statuses spell stats with underscores (DEBUFF_DAMAGE) while the damage math reads the
+            // custom-stat dictionary without them (DEBUFFDAMAGE), and some are ECustomStat members
+            // (HP_STEAL -> HPSteal). Accept all three spellings.
+            string key = name.Replace("_", "").ToUpperInvariant();
+            int value = p.GetCustomStatUnsafe(key);
+            int enumValue = 0;
+            try
+            {
+                ECustomStat stat;
+                if (Enum.TryParse<ECustomStat>(name.Replace("_", ""), true, out stat))
+                {
+                    enumValue = p.GetCustomStat(stat);
+                }
+            }
+            catch (Exception) { }
+            if (value == 0 && enumValue != 0) value = enumValue;
+            return Json.Write(Json.Obj().Add("name", name).Add("key", key).Add("value", value).Add("enumValue", enumValue));
+        }
+
+        public static string Grant(int itemId, int count)
+        {
+            PlayerAvatar p = Player();
+            if (p == null) return Json.Write(Json.Obj().Add("error", "no player"));
+            if (itemId <= 0) return Json.Write(Json.Obj().Add("error", "item id required"));
+            if (count < 1) count = 1;
+            if (count > 20) count = 20;
+            ItemMetadata[] items = new ItemMetadata[count];
+            for (int i = 0; i < count; i++) items[i] = new ItemMetadata(-1, itemId, 1);
+            p.Inventory.AddItemsWithGenerateInstanceID(Environment.TickCount, items);
+            MonitorPlugin.LogInfo("PlayerOps.Grant: " + count + "x" + itemId);
+            return Json.Write(Json.Obj().Add("granted", count).Add("item", itemId));
+        }
+
         public static string Engravings()
         {
             PlayerAvatar p = Player();

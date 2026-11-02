@@ -454,6 +454,10 @@ namespace SephiriaMonitor
                         return PlayerOps.Info();
                     case "/engravings":
                         return PlayerOps.Engravings();
+                    case "/cstat":
+                        return PlayerOps.CustomStat(Query(query, "name", ""));
+                    case "/grant":
+                        return PlayerOps.Grant(Int(query, "item", 0), Int(query, "count", 1));
                     case "/heal":
                         return PlayerOps.Heal(Num(query, "hp", 0f));
                     case "/money":
