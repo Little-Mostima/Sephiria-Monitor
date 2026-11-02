@@ -70,6 +70,34 @@ let contentOnly = false;
     if (meta.entryClass && !/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(meta.entryClass)) problems.push('entryClass does not look like a type name');
     if (!/^\d+\.\d+\.\d+$/.test(meta.modVersion || '')) problems.push('modVersion must be semver (x.y.z)');
   }
+  // content id guard: two installed content mods must not register the same numeric id
+  // (learned the hard way — a copy-pasted scaffold clobbers the other mod's entries)
+  {
+    const ids = new Map();
+    const collect = (root, self) => {
+      const src = path.join(root, 'src');
+      if (!exists(src)) return;
+      for (const f of fs.readdirSync(src)) {
+        if (!f.endsWith('.cs')) continue;
+        const text = fs.readFileSync(path.join(src, f), 'utf8');
+        for (const m of text.matchAll(/\b(9\d{5})\b/g)) {
+          if (!ids.has(m[1])) ids.set(m[1], new Set());
+          ids.get(m[1]).add(self);
+        }
+      }
+    };
+    const selfName = path.basename(modDir);
+    collect(modDir, selfName);
+    const workRoot = path.dirname(path.resolve(modDir));
+    for (const d of fs.readdirSync(workRoot, { withFileTypes: true })) {
+      if (!d.isDirectory() || d.name.startsWith('_') || d.name === selfName) continue;
+      collect(path.join(workRoot, d.name), d.name);
+    }
+    for (const [id, owners] of ids) {
+      if (owners.size > 1) console.log(`warn  content id ${id} is also used by ${[...owners].filter((o) => o !== selfName).join(', ')} — the two mods will fight over the same entry`);
+    }
+  }
+
   const suites = exists(path.join(modDir, 'tests')) ? fs.readdirSync(path.join(modDir, 'tests')).filter((n) => n.endsWith('.suite.json')) : [];
   if (!suites.length) problems.push('no tests/*.suite.json — a mod without a scenario cannot be regressed');
   record('static', problems.length === 0, problems.join('; ') || `${contentOnly ? 'content-only, ' : csprojs.length + ' csproj, '}${suites.length} suite(s)`);
