@@ -52,6 +52,14 @@ if (fs.existsSync(locDir)) {
   modules.push({ type: 'localization', path: 'Localization' });
 }
 
+// costume modules: workshop.json "costumes": ["costume"] (folder holding <one subfolder per costume>)
+for (const folder of (ws.costumes || [])) {
+  const src = path.join(modDir, folder);
+  if (!fs.existsSync(src) || !fs.statSync(src).isDirectory()) fail(`costume module folder missing: ${folder}`);
+  fs.cpSync(src, path.join(pkg, folder), { recursive: true });
+  modules.push({ type: 'costume', path: folder });
+}
+
 // data modules: workshop.json "data": ["data"] (folder names, relative to the mod dir)
 for (const folder of (ws.data || [])) {
   const src = path.join(modDir, folder);
