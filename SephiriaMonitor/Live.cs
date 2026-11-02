@@ -110,6 +110,20 @@ namespace SephiriaMonitor
                     }
                 }
                 o["thresholds"] = thresholds;
+                if (combo.avatar != null)
+                {
+                    // The exact strings the combo HUD renders: LocalizedString + {STAT} substitution.
+                    List<object> hud = new List<object>();
+                    List<ComboEffectElement> elements = combo.RequestComboData(combo.avatar);
+                    for (int e = 0; e < elements.Count; e++)
+                    {
+                        JsonObject h = Json.Obj();
+                        h["count"] = elements[e].comboCount;
+                        h["text"] = elements[e].effectName;
+                        hud.Add(h);
+                    }
+                    o["hud"] = hud;
+                }
                 o["statusInstances"] = StatusList(Field(combo, "statusInstances"));
                 items.Add(o);
             }
