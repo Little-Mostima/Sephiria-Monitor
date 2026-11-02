@@ -201,6 +201,7 @@ work/<mod>/              本地工作区（不进 git：mod.json / metadata.json
   tests/*.suite.json     JSON 场景套件：真游戏、真存档、真断言
 tools/runner/            node run-suite.mjs <suite>  → 起游戏 → 自动进档 → 逐步断言 → 还原
 tools/preflight.mjs      node preflight.mjs work/<mod> → 静态 → 编译 → 打包校验 → 全部套件
+tools/preflight.mjs --all 同上，但遍历 work/ 下每个模组（发布前总闸）
 tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<modId>/ + zip
 tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
 tools/doctor.mjs          node doctor.mjs → 环境自检（游戏 / dotnet / 插件版本 / 桥 / 存档 / 模组通道）

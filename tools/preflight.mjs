@@ -7,20 +7,40 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--'));
-if (!target) {
-  console.error('usage: node tools/preflight.mjs work/<mod> [--skip-tests] [--skip-build] [--json]');
+if (!target && !args.includes('--all')) {
+  console.error('usage: node tools/preflight.mjs work/<mod>|--all [--skip-tests] [--skip-build] [--json]');
   process.exit(2);
 }
 const skipTests = args.includes('--skip-tests');
 const skipBuild = args.includes('--skip-build');
 const asJson = args.includes('--json');
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
-const modDir = path.resolve(target);
+const modDir = target ? path.resolve(target) : null;
 const stages = [];
 
+// --all: gate every mod under work/ (one directory per mod, metadata.json present).
+if (args.includes('--all')) {
+  const WORK = path.join(REPO, 'work');
+  const mods = fs.readdirSync(WORK, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('_') && fs.existsSync(path.join(WORK, d.name, 'metadata.json')))
+    .map((d) => path.join(WORK, d.name));
+  const failed = [];
+  for (const m of mods) {
+    console.log(`\n=== ${path.basename(m)}`);
+    const childArgs = [fileURLToPath(import.meta.url), m];
+    if (skipTests) childArgs.push('--skip-tests');
+    if (skipBuild) childArgs.push('--skip-build');
+    if (asJson) childArgs.push('--json');
+    const r = spawnSync(process.execPath, childArgs, { stdio: 'inherit' });
+    if (r.status !== 0) failed.push(path.basename(m));
+  }
+  console.log(failed.length ? `\nPREFLIGHT FAILED: ${failed.join(', ')}` : `\nPREFLIGHT OK — ${mods.length} mod(s)`);
+  process.exit(failed.length ? 1 : 0);
+}
 const record = (name, ok, detail) => {
   stages.push({ name, ok, detail });
   if (!asJson) console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
