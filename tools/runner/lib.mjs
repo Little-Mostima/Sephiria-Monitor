@@ -157,7 +157,14 @@ export function snapshot(name) {
   fs.rmSync(dir, { recursive: true, force: true });
   ensureDir(dir);
   if (fs.existsSync(ADDONS)) copyDir(ADDONS, path.join(dir, 'AddOns'));
-  if (fs.existsSync(PLUGINS)) copyDir(PLUGINS, path.join(dir, 'plugins'));
+  if (fs.existsSync(PLUGINS)) {
+    // the monitor's own folder holds live session dumps and the running dll: never snapshot it
+    ensureDir(path.join(dir, 'plugins'));
+    for (const name of fs.readdirSync(PLUGINS)) {
+      if (name.toLowerCase() === 'sephiriamonitor') continue;
+      copyDir(path.join(PLUGINS, name), path.join(dir, 'plugins', name));
+    }
+  }
   fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({
     name,
     createdAt: new Date().toISOString(),
@@ -183,9 +190,19 @@ export function restore(name) {
     }
   };
   wipe(ADDONS);
-  wipe(PLUGINS);
+  // Wiping BepInEx\plugins wholesale also deleted the monitor's out\session-* dumps (and the
+  // dll that is running); keep its folder and only reset the other plugins.
+  if (fs.existsSync(PLUGINS)) {
+    for (const name of fs.readdirSync(PLUGINS)) {
+      if (name.toLowerCase() === 'sephiriamonitor') continue;
+      wipe(path.join(PLUGINS, name));
+    }
+  }
   if (fs.existsSync(path.join(dir, 'AddOns'))) copyDir(path.join(dir, 'AddOns'), ADDONS);
-  if (fs.existsSync(path.join(dir, 'plugins'))) copyDir(path.join(dir, 'plugins'), PLUGINS);
+  const snapPlugins = path.join(dir, 'plugins');
+  if (fs.existsSync(snapPlugins)) {
+    for (const name of fs.readdirSync(snapPlugins)) copyDir(path.join(snapPlugins, name), path.join(PLUGINS, name));
+  }
   return dir;
 }
 

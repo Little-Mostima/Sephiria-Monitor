@@ -206,7 +206,7 @@ tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<mo
 
 隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。
 
-第一个产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿。
+第一个产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿；打包产物按工坊形态装进 `WorkshopLocal\\` 后 `workshop-install` 套件 `PASS 7/7`（日志出现 loaded、40 s 内产出备份）。
 
 `/engravings`（0.20.0）是配套的观测点：固定刻印存在 `GridInventory.fixedEngravingsOnServer` 里，不是场景对象，`/objects` 看不到——这类“非组件状态”必须由服务端读点暴露，否则很容易把“看不见”写成“丢了”。
 
