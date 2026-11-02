@@ -21,7 +21,7 @@ namespace SephiriaMonitor
         public static bool EnableSnapshots = true;
         public static bool EnableDataExport = true;
         public static bool EmitProbes = false;
-        public static bool AutoEnter = true;
+        public static bool AutoEnter = false;
         public static string AutoEnterSlot = "1";
 
         public static void Load()
@@ -37,7 +37,7 @@ namespace SephiriaMonitor
                 EnableGameHooks = cfg.Bind("compat", "GameEventHooks", true, "Subscribe HorayModAPI / SaveManager events (saves, floors, units, evade).").Value;
                 EnableSnapshots = cfg.Bind("data", "Snapshots", true, "Capture a state snapshot on save/floor events and on /snapshot.").Value;
                 EnableDataExport = cfg.Bind("data", "DatabaseExport", true, "Export the game databases to CSV once they are ready.").Value;
-                AutoEnter = cfg.Bind("title", "AutoEnter", true, "Load the save slot automatically as soon as the title screen is ready (removes the manual /enter step from every debug run).").Value;
+                AutoEnter = cfg.Bind("title", "AutoEnter", false, "Master switch for auto-loading a save on the title screen. Even when true, it only fires if the one-shot marker file (autoenter.on, 2h TTL) exists. Leave false for normal play.").Value;
                 AutoEnterSlot = cfg.Bind("title", "AutoEnterSlot", "1", "Slot used by AutoEnter: 1, 2, 3 or SLOT1..SLOT3.").Value;
                 EmitProbes = cfg.Bind("data", "ProbeEvents", false, "Also record self-hit probe entries (attacker == victim, dealt 0). They are hit-test noise for analysis; off by default, only their counter is kept.").Value;
                 if (BridgePort < 1024 || BridgePort > 65535)
@@ -56,7 +56,8 @@ namespace SephiriaMonitor
             return "port=" + BridgePort + "|title=" + (EnableTitleControl ? 1 : 0) +
                    "|titleHooks=" + (EnableTitleHooks ? 1 : 0) + "|gameHooks=" + (EnableGameHooks ? 1 : 0) +
                    "|snapshots=" + (EnableSnapshots ? 1 : 0) + "|export=" + (EnableDataExport ? 1 : 0) +
-                   "|probes=" + (EmitProbes ? 1 : 0) + "|auto=" + (AutoEnter ? AutoEnterSlot : "off");
+                   "|probes=" + (EmitProbes ? 1 : 0) + "|auto=" + (AutoEnter ? AutoEnterSlot : "off") +
+                   "|armed=" + (AutoEnterGate.IsArmed() ? "1" : "0");
         }
     }
 }

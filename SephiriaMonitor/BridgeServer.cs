@@ -501,6 +501,19 @@ namespace SephiriaMonitor
                         return Snapshot.Capture(Query(query, "reason", "bridge"));
                     case "/session":
                         return Json.Write(Json.Obj().Add("root", Session.Root).Add("events", Session.EventCount).Add("requests", BridgeServer.Requests).Add("floorDumps", FloorDump.Count));
+                    case "/arm":
+                        {
+                            int minutes = int.Parse(Query(query, "minutes", "120"));
+                            MonitorConfig.AutoEnter = true;          // runtime only, never written to the cfg
+                            TitleControl.ResetAutoOnce();
+                            string armResult = AutoEnterGate.Arm(minutes);
+                            return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", true).Add("slot", MonitorConfig.AutoEnterSlot)
+                                .Add("marker", Json.Obj().Add("armed", AutoEnterGate.IsArmed())).Add("detail", armResult));
+                        }
+                    case "/disarm":
+                        MonitorConfig.AutoEnter = false;
+                        AutoEnterGate.Delete();
+                        return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", false).Add("armed", AutoEnterGate.IsArmed()));
                     case "/title":
                         return Json.Write(TitleControl.TitleInfo());
                     case "/saves":

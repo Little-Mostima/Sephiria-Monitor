@@ -8,7 +8,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.18.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.19.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -110,7 +110,7 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.18.0
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.19.0
 node tools\selfcheck.mjs                            # 期望 23 passed, 0 failed
 ```
 
@@ -190,6 +190,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 | 版本 | 变更 |
 | --- | --- |
+| **0.19.0** | **自动进档改成双钥匙、一次性**：配置 `[title] AutoEnter` 默认 `false`（总开关），且必须存在标记文件 `BepInEx\plugins\SephiriaMonitor\autoenter.on`（内含 2 小时过期时间戳）才会进档；进档后插件自己删除标记，且**每个进程只触发一次**——退回主界面不会再被拽进存档。新增 `/arm?minutes=` `/disarm` |
 | **0.18.0** | 测 mod 三件能力补齐：`/savekey` `/savedump`（读写存档键）、`/modoptions?set=`（写 mod 设置）、`/logs?after=`（增量日志）；`/combat.playerTaken` 改为按 `dealt` 统计（另给 `rawTotal`） |
 | **0.17.1** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
 | **0.12.0** | 新增「到达任何地方」工具：`/spots` `/use` `/gridrooms` `/jump`（交互点枚举与触发、程序化房间枚举与跳转），13 个工具 |
@@ -245,7 +246,8 @@ NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（�
 
 ## 9. 边界
 
-- 只读。唯一的写操作是 `/enter`（调用游戏自己的 `UI_TitleLobby.NetworkHost()` 进档），需要你明确要求才用。
+- 只读。写操作只有 `/enter`（调用游戏自己的 `UI_TitleLobby.NetworkHost()` 进档）和 `/arm`（写自动进档标记），都需要显式调用。
+- **自动进档默认完全关闭**：`[title] AutoEnter=false`；即使打开，也必须存在 2 小时有效期的标记文件，且每进程只生效一次，正常游玩不会被打断。
 - 只监听 `127.0.0.1`，不对外网开放；请勿把它暴露到公网或打包进工坊内容。
 - 不含任何绕过、注入或修改游戏逻辑的代码；Harmony 只用于读取（`Postfix` 观测）。
 
@@ -254,7 +256,7 @@ MIT License.
 
 把下面**这一句**发给任意有终端权限的 AI（Claude Code / Codex / DSH 等），它会自己完成克隆、编译、部署、启动与自检：
 
-> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.18.0、运行 `node tools\selfcheck.mjs` 确认 23 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
+> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.19.0、运行 `node tools\selfcheck.mjs` 确认 23 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
 
 如果 AI 需要更明确的边界，可以再补一句：
 

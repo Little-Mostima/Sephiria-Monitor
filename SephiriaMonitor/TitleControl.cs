@@ -29,6 +29,15 @@ namespace SephiriaMonitor
         private static bool autoTried;
         private static float titleReadyAt = -1f;
 
+        /// <summary>
+        /// Explicit arming may re-open the once-per-process window: only /arm calls this, and /arm is
+        /// something a person or an agent types on purpose, never the player's normal menu flow.
+        /// </summary>
+        public static void ResetAutoOnce()
+        {
+            autoTried = false;
+        }
+
         public static string PendingState { get { return pendingState; } }
         public static bool IsTitle { get { return SceneTracker.Current == TitleSceneName; } }
 
@@ -41,7 +50,8 @@ namespace SephiriaMonitor
             pendingAttempts = 0;
             lastSignature = null;
             nextLogAt = 0f;
-            autoTried = false;
+            // autoTried is deliberately NOT reset here: the auto-enter gate is once per process,
+            // otherwise every "exit to title" would drag the player back into the save.
             titleReadyAt = Time.realtimeSinceStartup;
             MonitorPlugin.LogInfo("TITLE|ready|t=" + Time.realtimeSinceStartup.ToString("0.00"));
             InvalidateSlotCache();
@@ -331,16 +341,34 @@ namespace SephiriaMonitor
             {
                 return;
             }
-            if (!autoTried && pendingSlot == null && MonitorConfig.AutoEnter)
+            if (!autoTried && pendingSlot == null)
             {
-                if (FindScene<UI_TitleLobby>() != null)
+                if (!MonitorConfig.AutoEnter)
                 {
                     autoTried = true;
-                    float waited = titleReadyAt < 0f ? 0f : (Time.realtimeSinceStartup - titleReadyAt) * 1000f;
-                    Dictionary<string, object> auto = Enter(MonitorConfig.AutoEnterSlot, false);
-                    MonitorPlugin.LogInfo("TITLE|auto|slot=" + MonitorConfig.AutoEnterSlot + "|ok=" + auto["ok"] +
-                                          "|afterReadyMs=" + waited.ToString("0") +
-                                          (auto.ContainsKey("error") ? "|error=" + auto["error"] : ""));
+                    MonitorPlugin.LogInfo("TITLE|auto|skip|reason=config-off");
+                }
+                else if (FindScene<UI_TitleLobby>() != null)
+                {
+                    string gateReason;
+                    bool armed = AutoEnterGate.Check(out gateReason);
+                    autoTried = true;
+                    if (!armed)
+                    {
+                        MonitorPlugin.LogInfo("TITLE|auto|skip|reason=" + gateReason);
+                    }
+                    else
+                    {
+                        float waited = titleReadyAt < 0f ? 0f : (Time.realtimeSinceStartup - titleReadyAt) * 1000f;
+                        Dictionary<string, object> auto = Enter(MonitorConfig.AutoEnterSlot, false);
+                        bool ok = auto.ContainsKey("ok") && auto["ok"] is bool && (bool)auto["ok"];
+                        // one-shot: the marker can never cause a second auto-enter, even if the attempt failed
+                        AutoEnterGate.Delete();
+                        MonitorPlugin.LogInfo("TITLE|auto|slot=" + MonitorConfig.AutoEnterSlot + "|ok=" + ok +
+                                              "|gate=" + gateReason + "|afterReadyMs=" + waited.ToString("0") +
+                                              (auto.ContainsKey("error") ? "|error=" + auto["error"] : ""));
+                        Events.Note("title", "auto_enter|" + MonitorConfig.AutoEnterSlot + "|ok=" + ok);
+                    }
                 }
             }
             if (t >= nextLogAt)

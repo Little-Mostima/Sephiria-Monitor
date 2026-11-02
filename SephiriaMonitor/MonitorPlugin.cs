@@ -11,7 +11,7 @@ namespace SephiriaMonitor
     public class MonitorPlugin : BaseUnityPlugin
     {
         public const string Guid = "com.surveillance.sephiriamonitor";
-        public const string Version = "0.18.0";
+        public const string Version = "0.19.0";
 
         public static MonitorPlugin Instance { get; private set; }
         public static string OutDir { get; private set; }
