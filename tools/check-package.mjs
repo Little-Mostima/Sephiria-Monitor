@@ -49,7 +49,7 @@ if (!fs.existsSync(metaPath)) {
   if (dirs.length === 1 && fs.existsSync(path.join(root, dirs[0].name, 'metadata.json'))) {
     root = path.join(root, dirs[0].name);
     metaPath = path.join(root, 'metadata.json');
-    warn(`package root has one nested folder "${dirs[0].name}" — uploads usually expect metadata.json at the zip root`);
+    warn(`package root has one nested folder "${dirs[0].name}" - uploads usually expect metadata.json at the zip root`);
   }
 }
 // ---- review policy (docs/zh-CN/publishing.md): every shipped file is reviewed ----
@@ -100,7 +100,7 @@ if (meta.tags !== undefined && !Array.isArray(meta.tags)) err('tags must be an a
   const TAG_CATEGORIES = ['Item', 'Costume', 'Weapon', 'NPC', 'Enemy', 'Gameplay', 'QoL', 'Library', 'Localization'];
   if (Array.isArray(meta.tags)) {
     for (const tag of meta.tags) {
-      if (!TAG_CATEGORIES.includes(tag)) warn(`tag "${tag}" is not one of the workshop categories (${TAG_CATEGORIES.join('/')}) — it uploads but is filtered out`);
+      if (!TAG_CATEGORIES.includes(tag)) warn(`tag "${tag}" is not one of the workshop categories (${TAG_CATEGORIES.join('/')}) - it uploads but is filtered out`);
     }
   }
 
@@ -150,8 +150,8 @@ function packageBytes() {
   try { return walk(root); } catch { return 0; }
 }
 bytes = packageBytes();
-if (hasCodeModule && bytes > MAX_CODE_BYTES) err(`code package is ${(bytes / 1048576).toFixed(1)} MB — review limit is 20 MB`);
-if (bytes > 50 * 1024 * 1024) warn(`package is ${(bytes / 1048576).toFixed(1)} MB — large uploads are slow and may hit limits`);
+if (hasCodeModule && bytes > MAX_CODE_BYTES) err(`code package is ${(bytes / 1048576).toFixed(1)} MB - review limit is 20 MB`);
+if (bytes > 50 * 1024 * 1024) warn(`package is ${(bytes / 1048576).toFixed(1)} MB - large uploads are slow and may hit limits`);
 
 report();
 

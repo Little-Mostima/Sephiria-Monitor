@@ -88,7 +88,7 @@ try {
 } catch {}
 
 const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-const rel = `# Release — ${modId} v${version}
+const rel = `# Release - ${modId} v${version}
 
 - built: ${stamp}
 - game: ${gameVersion}

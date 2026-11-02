@@ -173,7 +173,7 @@ export async function launchAndWait({ timeoutMs = 180000, log = () => {}, consol
 export function launchGame({ consoleWindow = false, hidden = !process.env.SEPHIRIA_VISIBLE } = {}) {
   // Three layers of "do not disturb", strongest first:
   //   1. hidden=true (default): the game is created on a private window station desktop, so its
-  //      windows exist but are not on the interactive desktop at all — no flash, no focus steal,
+  //      windows exist but are not on the interactive desktop at all - no flash, no focus steal,
   //      and no race with the minimise loop. SEPHIRIA_VISIBLE=1 opts out.
   //   2. launch the exe directly, not steam://rungameid: Steam pops its own "starting / syncing
   //      cloud" dialog and that steals focus too. Steam itself must still be running.
@@ -311,7 +311,7 @@ export function restore(name) {
       fs.rmSync(target, { recursive: true, force: true });
     } catch (ex) {
       if (ex && (ex.code === 'EPERM' || ex.code === 'EBUSY')) {
-        const err = new Error(`${target} is locked${isGameRunning() ? ' (the game is running — stop it first, or run with --keep)' : ''}`);
+        const err = new Error(`${target} is locked${isGameRunning() ? ' (the game is running - stop it first, or run with --keep)' : ''}`);
         err.locked = true;
         throw err;
       }
@@ -421,7 +421,7 @@ export function deployMod(name, log = () => {}) {
 }
 
 // Workshop channel: put a built package where the game's workshop pipeline looks for local
-// packages (WorkshopLocal\<modId>\metadata.json). This is how the packaged artifact gets tested —
+// packages (WorkshopLocal\<modId>\metadata.json). This is how the packaged artifact gets tested -
 // AddOns has its own loader and would hide a broken nested manifest.
 export function installPackage(zipOrDir) {
   const src = path.resolve(zipOrDir);

@@ -6,7 +6,7 @@
 //   1. `GAME\BepInEx\config\BepInEx.cfg` -> `[Logging.Console] Enabled = false` removes the log
 //      window altogether; the same lines still land in `LogOutput.log` and in the plugin's
 //      `/logs` ring, so nothing is lost for automation.
-//   2. `startMinimizer()` runs a PowerShell loop (child of this Node process, NOT detached —
+//   2. `startMinimizer()` runs a PowerShell loop (child of this Node process, NOT detached -
 //      detached children do not survive here) that minimises every visible window owned by
 //      Sephiria.exe every ~120 ms while the game boots.
 //
@@ -62,7 +62,7 @@ public static class WinFocus {
     si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
     si.lpDesktop = desktop;
     si.dwFlags = 1;          // STARTF_USESHOWWINDOW
-    si.wShowWindow = 1;      // SW_SHOWNORMAL — irrelevant on an invisible desktop
+    si.wShowWindow = 1;      // SW_SHOWNORMAL - irrelevant on an invisible desktop
     PROCESS_INFORMATION pi;
     if (!CreateProcess(exe, null, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, workdir, ref si, out pi))
       return "CreateProcess failed: " + Marshal.GetLastWin32Error();
@@ -150,7 +150,7 @@ export const HIDDEN_DESKTOP = 'SephiriaHidden';
 
 /**
  * Launch the game on a private desktop. Its windows are created there instead of on the
- * interactive desktop, so nothing flashes and the foreground window never changes — no race with
+ * interactive desktop, so nothing flashes and the foreground window never changes - no race with
  * the minimise loop, no focus steal. The helper PowerShell process also keeps the desktop object
  * alive for as long as the game runs (a desktop dies with its last handle).
  */

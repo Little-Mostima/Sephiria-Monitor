@@ -117,7 +117,7 @@ async function runStep(step, ctx, index) {
           ctx.baseline.values[key] = value;
           log(`baseline ${key} = ${JSON.stringify(value)}`);
         } else {
-          if (!(key in ctx.baseline.values)) fail(`baseline has no key ${key} — rerun with --baseline`);
+          if (!(key in ctx.baseline.values)) fail(`baseline has no key ${key} - rerun with --baseline`);
           const expected = ctx.baseline.values[key];
           const tol = Number(body.tolerance || 0);
           const ok = typeof expected === 'number' && typeof value === 'number' ? numDiff(expected, value, tol) : compare('==', value, expected);
@@ -310,11 +310,11 @@ async function main() {
   let ctx = { last: null, baseline: { values: {} } };
   const needsBaseline = suite.steps.some((st) => st && typeof st === "object" && "baseline" in st);
   if (!opts.baseline && needsBaseline) {
-    if (!fs.existsSync(baselineFile)) fail(`no baseline at ${baselineFile} — run with --baseline first`);
+    if (!fs.existsSync(baselineFile)) fail(`no baseline at ${baselineFile} - run with --baseline first`);
     ctx.baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
     for (const key of ['gameVersion', 'pluginVersion']) {
       if (ctx.baseline.meta && ctx.baseline.meta[key] !== results.meta[key]) {
-        fail(`baseline was recorded with ${key}=${ctx.baseline.meta[key]}, now ${results.meta[key]} — rerun with --baseline`);
+        fail(`baseline was recorded with ${key}=${ctx.baseline.meta[key]}, now ${results.meta[key]} - rerun with --baseline`);
       }
     }
   }
@@ -374,7 +374,7 @@ async function main() {
       if (v.ok) log(`isolation restored (AddOns/plugins + ${v.files} save file(s), sha256 verified)`);
       else {
         results.ok = false;
-        log(`ISOLATION BROKEN: ${v.bad.join(', ')} differ from the backup — stop and inspect work/_state/saves-pre`);
+        log(`ISOLATION BROKEN: ${v.bad.join(', ')} differ from the backup - stop and inspect work/_state/saves-pre`);
       }
     } catch (ex) {
       results.ok = false;
