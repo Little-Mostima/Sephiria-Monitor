@@ -707,6 +707,43 @@ namespace SephiriaMonitor
         }
 
         /// <summary>Soft reload: call ReloadData() on every loaded mod that exposes it (no restart).</summary>
+        /// <summary>Re-scan WorkshopLocal and try to activate what was added, without restarting.</summary>
+        public static JObject Rescan()
+        {
+            var o = new JObject();
+            try
+            {
+                var mgr = WorkshopModManager.Instance;
+                if (mgr == null)
+                {
+                    o["ok"] = false;
+                    o["error"] = "no WorkshopModManager in this scene (title/lobby only)";
+                    return o;
+                }
+
+                bool changed = mgr.RescanLocalPackages();
+                o["ok"] = true;
+                o["changed"] = changed;
+                o["restartRequired"] = WorkshopModRuntime.RestartRequired;
+                var arr = new JArray();
+                foreach (var r in WorkshopModRuntime.LastResults)
+                {
+                    var e = new JObject();
+                    e["mod"] = r == null || r.Planned == null || r.Planned.Definition == null ? "" : r.Planned.Definition.ModId;
+                    e["status"] = r == null ? "" : r.Status.ToString();
+                    e["restart"] = r != null && r.RequiresRestart;
+                    arr.Add(e);
+                }
+                o["results"] = arr;
+            }
+            catch (Exception e)
+            {
+                o["ok"] = false;
+                o["error"] = e.GetType().Name + ": " + e.Message;
+            }
+            return o;
+        }
+
         public static JObject Reload()
         {
             var arr = new JArray();

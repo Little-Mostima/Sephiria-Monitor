@@ -10,11 +10,13 @@
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
 //   node tools/do.mjs watch [--tier smoke|fast]  re-run the cheap checks whenever a mod or doc changes
+//   node tools/do.mjs session [suite...]      one cold start, then run suites with --reuse
+//   node tools/do.mjs ship <mod> [--stage]  build -> full preflight -> pack -> release (one publish path)
 //   node tools/do.mjs clean                    drop test runs / snapshots / build leftovers
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { REPO, WORK } from './runner/lib.mjs';
+import { REPO, WORK, killGameAndWait } from './runner/lib.mjs';
 
 const [, , task, ...rest] = process.argv;
 const run = (script, args) => {
@@ -32,6 +34,52 @@ const TASKS = {
   docs: (a) => run('doccheck.mjs', a),
   doctor: (a) => run('doctor.mjs', a),
   new: (a) => run('new-mod.mjs', a),
+  session: (a) => {
+    const suites = a.filter((x) => !x.startsWith('--'));
+    const list = suites.length ? suites : (function discover() {
+      const out = [];
+      for (const name of fs.readdirSync(WORK)) {
+        const dir = path.join(WORK, name, 'tests');
+        if (!fs.existsSync(dir)) continue;
+        for (const f of fs.readdirSync(dir)) {
+          const full = path.join(dir, f);
+          if (!f.endsWith('.suite.json')) continue;
+          try { if (JSON.parse(fs.readFileSync(full, 'utf8')).tier === 'fast') out.push(full); } catch {}
+        }
+      }
+      return out;
+    })();
+    console.log(`session: ${list.length} suite(s) against one running world`);
+    const boot = spawnSync(process.execPath, [path.join(REPO, 'tools', 'launch-bg.mjs'), '--world'], { stdio: 'inherit' });
+    if ((boot.status ?? 1) !== 0) { console.error('SESSION FAILED: could not start the game'); process.exit(1); }
+    const failed = [];
+    for (const f of list) {
+      console.log(`\n=== ${path.basename(f)}`);
+      const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), f, '--reuse', '--no-watchdog'], { stdio: 'inherit' });
+      if ((res.status ?? 1) !== 0) failed.push(path.basename(f));
+    }
+    try { killGameAndWait(); } catch {}
+    console.log(failed.length ? `\nSESSION FAILED: ${failed.join(', ')}` : `\nSESSION OK - ${list.length} suite(s)`);
+    process.exit(failed.length ? 1 : 0);
+  },
+  ship: (a) => {
+    const arg = a.find((x) => !x.startsWith('--'));
+    if (!arg) { console.error('usage: do.mjs ship <mod> [--stage]'); process.exit(2); }
+    const mod = fs.existsSync(path.join(WORK, arg)) ? path.join(WORK, arg) : arg;
+    const stage = a.includes('--stage') ? ['--stage'] : [];
+    const steps = [
+      ['build-mod.mjs', [mod]],
+      ['preflight.mjs', [mod]],
+      ['pack-workshop.mjs', [mod]],
+      ['release.mjs', [mod, ...stage]],
+    ];
+    for (const [script, args] of steps) {
+      console.log(`\n=== ${script} ${args.join(' ')}`);
+      const res = spawnSync(process.execPath, [path.join(REPO, 'tools', script), ...args], { stdio: 'inherit' });
+      if ((res.status ?? 1) !== 0) { console.error(`SHIP FAILED at ${script}`); process.exit(res.status ?? 1); }
+    }
+    console.log(`\nSHIP OK  ${mod}`);
+  },
   watch: (a) => {
     const tier = a.includes('--tier') ? a[a.indexOf('--tier') + 1] : 'smoke';
     const roots = [];

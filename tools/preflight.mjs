@@ -20,6 +20,7 @@ const tierIdx = args.indexOf('--tier');
 const tier = tierIdx >= 0 ? args[tierIdx + 1] : 'full'; // smoke | fast | full
 const skipBuild = args.includes('--skip-build');
 const asJson = args.includes('--json');
+const reuse = args.includes('--reuse');
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
 const modDir = target ? path.resolve(target) : null;
 const stages = [];
@@ -38,6 +39,7 @@ if (args.includes('--all')) {
     if (skipBuild) childArgs.push('--skip-build');
     if (asJson) childArgs.push('--json');
     if (tier !== 'full') childArgs.push('--tier', tier);
+    if (reuse) childArgs.push('--reuse');
     const r = spawnSync(process.execPath, childArgs, { stdio: 'inherit' });
     if (r.status !== 0) failed.push(path.basename(m));
   }
@@ -157,7 +159,7 @@ if (!skipTests) {
       record('suite:' + suite.replace('.suite.json', ''), true, `skipped (tier ${suiteTier} > ${tier})`);
       continue;
     }
-    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), suitePath, '--no-watchdog'], { stdio: 'pipe', encoding: 'utf8' });
+    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), suitePath, '--no-watchdog', ...(reuse ? ['--reuse'] : [])], { stdio: 'pipe', encoding: 'utf8' });
     const text = ((res.stdout || '') + (res.stderr || '')).trim();
     const last = text.split('\n').filter((l) => /PASS|FAIL|FAILED/.test(l)).slice(-1)[0] || text.split('\n').slice(-1)[0];
     record('suite:' + suite.replace('.suite.json', ''), res.status === 0, last);

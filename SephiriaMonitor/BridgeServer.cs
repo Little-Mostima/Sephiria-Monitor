@@ -417,6 +417,8 @@ namespace SephiriaMonitor
                     case "/reload":
                     return ModOps.Reload().ToString(Newtonsoft.Json.Formatting.None);
                 case "/mods":
+                        if (Query(query, "action", "") == "rescan")
+                            return ModOps.Rescan().ToString(Newtonsoft.Json.Formatting.None);
                         return ModOps.List().ToString(Newtonsoft.Json.Formatting.None);
                     case "/patches":
                         return ModOps.Patches(Query(query, "q", ""), Query(query, "owner", ""), Int(query, "limit", 20)).ToString(Newtonsoft.Json.Formatting.None);
