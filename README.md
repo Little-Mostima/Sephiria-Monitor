@@ -8,7 +8,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.16.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.16.1**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -110,7 +110,7 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.16.0
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.16.1
 node tools\selfcheck.mjs                            # 期望 20 passed, 0 failed
 ```
 
@@ -190,7 +190,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 | 版本 | 变更 |
 | --- | --- |
-| **0.16.0** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
+| **0.16.1** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
 | **0.12.0** | 新增「到达任何地方」工具：`/spots` `/use` `/gridrooms` `/jump`（交互点枚举与触发、程序化房间枚举与跳转），13 个工具 |
 | **0.10.0** | **MCP 服务器并入插件**（`POST /mcp`，11 工具），删除独立 Node 服务器；`hooks.json` 随插件部署，79 条挂点 |
 | 0.9.2 | 工具层精简 23 → 11 个复合工具（brief/world/save/db 合并），README 合并为单份 |
@@ -240,7 +240,7 @@ MIT License.
 
 把下面**这一句**发给任意有终端权限的 AI（Claude Code / Codex / DSH 等），它会自己完成克隆、编译、部署、启动与自检：
 
-> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.16.0、运行 `node tools\selfcheck.mjs` 确认 15 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
+> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.16.1、运行 `node tools\selfcheck.mjs` 确认 15 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
 
 如果 AI 需要更明确的边界，可以再补一句：
 

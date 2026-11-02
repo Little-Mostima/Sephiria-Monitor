@@ -67,11 +67,49 @@ namespace SephiriaMonitor
         public static void InvalidateCache()
         {
             cache.Clear();
+            typeCache.Clear();
         }
+
+        private static readonly Dictionary<string, Type> typeCache = new Dictionary<string, Type>();
 
         public static Type FindType(string shortName)
         {
-            Assembly asm = typeof(GameLogWriter).Assembly;
+            if (string.IsNullOrEmpty(shortName))
+            {
+                return null;
+            }
+            Type hit;
+            if (typeCache.TryGetValue(shortName, out hit))
+            {
+                return hit;
+            }
+            hit = FindInAssembly(typeof(GameLogWriter).Assembly, shortName);
+            if (hit == null)
+            {
+                // mods live in their own assemblies: search everything that is loaded.
+                Assembly[] all = AppDomain.CurrentDomain.GetAssemblies();
+                for (int i = 0; i < all.Length && hit == null; i++)
+                {
+                    Assembly a = all[i];
+                    if (a == null || a == typeof(GameLogWriter).Assembly)
+                    {
+                        continue;
+                    }
+                    string name = "";
+                    try { name = a.GetName().Name ?? ""; } catch { }
+                    if (name.StartsWith("System") || name == "mscorlib" || name == "netstandard" || name.StartsWith("Mono."))
+                    {
+                        continue;
+                    }
+                    hit = FindInAssembly(a, shortName);
+                }
+            }
+            typeCache[shortName] = hit;
+            return hit;
+        }
+
+        private static Type FindInAssembly(Assembly asm, string shortName)
+        {
             Type[] types;
             try
             {
