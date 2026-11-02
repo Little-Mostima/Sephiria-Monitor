@@ -202,6 +202,7 @@ work/<mod>/              本地工作区（不进 git：mod.json / metadata.json
 tools/runner/            node run-suite.mjs <suite>  → 起游戏 → 自动进档 → 逐步断言 → 还原
 tools/preflight.mjs      node preflight.mjs work/<mod> → 静态 → 编译 → 打包校验 → 全部套件
 tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<modId>/ + zip
+tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
 ```
 
 隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。
