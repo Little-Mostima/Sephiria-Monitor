@@ -448,6 +448,8 @@ namespace SephiriaMonitor
                             .Add("recordNpcDamage", !Events.SkipNpcDamage));
                     case "/pinfo":
                         return PlayerOps.Info();
+                    case "/engravings":
+                        return PlayerOps.Engravings();
                     case "/heal":
                         return PlayerOps.Heal(Num(query, "hp", 0f));
                     case "/money":
@@ -690,6 +692,7 @@ namespace SephiriaMonitor
             d["mod"] = "SephiriaMonitor";
             d["version"] = MonitorPlugin.Version;
             d["unity"] = Application.unityVersion;
+            d["gameVersion"] = Application.version;
             d["scene"] = SceneTracker.Current;
             d["t"] = Time.realtimeSinceStartup;
             d["session"] = Session.Root;

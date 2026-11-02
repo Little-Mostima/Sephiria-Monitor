@@ -8,7 +8,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.19.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.20.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -28,6 +28,12 @@ SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
 tools/
   mcp-stdio.mjs           # 可选：stdio → HTTP 代理（给只支持 stdio 的客户端）
   selfcheck.mjs           # 端到端自检（23 项）
+  preflight.mjs           # 一个 mod 的上线门禁：静态 → 编译 → 打包 → 跑套件
+  pack-workshop.mjs       # 把 work/<mod> 打成工坊包（嵌套 metadata + zip）
+  runner/
+    lib.mjs               # 桥客户端 / 进程生命周期 / 快照与存档备份
+    run-suite.mjs         # JSON 套件执行器（expect/baseline/restart/files…）
+    examples/             # hello.suite.json：最小冒烟套件
 install.ps1               # 一键安装/升级
 ```
 
@@ -110,7 +116,7 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.19.0
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.20.0
 node tools\selfcheck.mjs                            # 期望 23 passed, 0 failed
 ```
 
@@ -182,14 +188,33 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | `sephiria_player` | **写操作**：`action=god`（`on=1` 只回血、可被索敌；`invuln=1` 真无敌但 AI 会跳过你）、`boss`（Boss 血量/位置/当前动作/目标）、`heal/money/level/stat`、`config`（`npcDamage=0` 不记录 NPC 互殴） |
 | `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
-同一个端口还提供 55 条只读 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
+同一个端口还提供 56 条 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
 
 ---
 
-## 6. 版本记录
+## 6. 模组工坊：做、测、发
+
+这套插件同时是一个**模组制作与回归测试台**：
+
+```text
+work/<mod>/              本地工作区（不进 git：mod.json / metadata.json / src / dist / tests / workshop.json）
+  tests/*.suite.json     JSON 场景套件：真游戏、真存档、真断言
+tools/runner/            node run-suite.mjs <suite>  → 起游戏 → 自动进档 → 逐步断言 → 还原
+tools/preflight.mjs      node preflight.mjs work/<mod> → 静态 → 编译 → 打包校验 → 全部套件
+tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<modId>/ + zip
+```
+
+隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。
+
+第一个产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿。
+
+`/engravings`（0.20.0）是配套的观测点：固定刻印存在 `GridInventory.fixedEngravingsOnServer` 里，不是场景对象，`/objects` 看不到——这类“非组件状态”必须由服务端读点暴露，否则很容易把“看不见”写成“丢了”。
+
+## 7. 版本记录
 
 | 版本 | 变更 |
 | --- | --- |
+| **0.20.0** | **观测点补齐**：新增 `/engravings`（服务端读 `fixedEngravingsOnServer`，`/objects` 看不到非组件类状态）；版本号与文档同步。配套新增 mod 工坊工具链：`tools/runner`（JSON 套件驱动实机回归）、`tools/preflight.mjs`（一键门禁）、`tools/pack-workshop.mjs`（工坊打包） |
 | **0.19.0** | **自动进档改成双钥匙、一次性**：配置 `[title] AutoEnter` 默认 `false`（总开关），且必须存在标记文件 `BepInEx\plugins\SephiriaMonitor\autoenter.on`（内含 2 小时过期时间戳）才会进档；进档后插件自己删除标记，且**每个进程只触发一次**——退回主界面不会再被拽进存档。新增 `/arm?minutes=` `/disarm` |
 | **0.18.0** | 测 mod 三件能力补齐：`/savekey` `/savedump`（读写存档键）、`/modoptions?set=`（写 mod 设置）、`/logs?after=`（增量日志）；`/combat.playerTaken` 改为按 `dealt` 统计（另给 `rawTotal`） |
 | **0.17.1** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
@@ -205,7 +230,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 ---
 
-## 7. 从源码编译
+## 8. 从源码编译
 
 - 目标框架 `netstandard2.1`，`LangVersion 9.0`，需要 .NET SDK 8 构建（运行时不够）。
 - 引用游戏的程序集（`Sephiria_Data\Managed`）与 BepInEx、0Harmony、`Newtonsoft.Json`，全部 `Private=false`（不复制到输出）。
@@ -218,7 +243,7 @@ dotnet build SephiriaMonitor -c Release
 
 ---
 
-## 7. 游戏内设置页（玩家手动调试）
+## 9. 游戏内设置页（玩家手动调试）
 
 插件会把调试开关注册进游戏自己的 **设置 → 游戏性 → 模组设置 → Sephiria Monitor**（`ModOptions` 是 `internal`，走全反射注册；值存在 `DeviceOptions.xml` 的 `ModOptions:com.surveillance.monitor:<key>`）：
 
@@ -231,7 +256,7 @@ NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（�
 
 查看当前值与所有 mod 页：`GET /modoptions`，或 MCP `sephiria_mods` 的 `action=options`。
 
-## 8. 排错
+## 10. 排错
 
 | 现象 | 原因 / 处理 |
 | --- | --- |
@@ -244,7 +269,7 @@ NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（�
 
 ---
 
-## 9. 边界
+## 11. 边界
 
 - 只读。写操作只有 `/enter`（调用游戏自己的 `UI_TitleLobby.NetworkHost()` 进档）和 `/arm`（写自动进档标记），都需要显式调用。
 - **自动进档默认完全关闭**：`[title] AutoEnter=false`；即使打开，也必须存在 2 小时有效期的标记文件，且每进程只生效一次，正常游玩不会被打断。

@@ -1,0 +1,332 @@
+// Shared helpers for the Sephiria mod workbench: bridge client, game lifecycle,
+// per-mod isolation (snapshot/restore), save backups and scenario step evaluation.
+//
+// Design rules (see _re/MODDEV/testing/protocol.md):
+//  * the game is only ever driven through the loopback bridge (127.0.0.1), no screenshots;
+//  * auto-enter is always explicit here: launch -> wait bridge -> /arm -> wait MainWorld
+//    (the plugin also accepts /arm at the title screen, which re-opens its one-shot gate);
+//  * every suite runs with a snapshot of AddOns/ and BepInEx/plugins/ and a backup of the
+//    save slots, and both are restored afterwards unless --keep is passed;
+//  * artifacts of a failed run (health/logs/events/state) are written to work/_runs/<id>/.
+
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+export const RUNNER_DIR = path.dirname(fileURLToPath(import.meta.url));
+export const REPO = path.resolve(RUNNER_DIR, '..', '..');
+export const WORK = path.join(REPO, 'work');
+export const STATE = path.join(WORK, '_state');
+export const RUNS = path.join(WORK, '_runs');
+export const GAME = process.env.SEPHIRIA_GAME_DIR || 'D:\\steam\\steamapps\\common\\Sephiria';
+export const PORT = Number(process.env.SEPHIRIA_BRIDGE_PORT || 47901);
+export const BASE = `http://127.0.0.1:${PORT}`;
+// Documents may be redirected (OneDrive/known-folder move), so resolve it the way Unity does.
+export const SAVES = process.env.SEPHIRIA_SAVES_DIR || path.join(os.homedir(), 'Documents', 'Saved Games', 'Sephiria');
+export const ADDONS = path.join(GAME, 'AddOns');
+export const PLUGINS = path.join(GAME, 'BepInEx', 'plugins');
+export const STEAM_URL = 'steam://rungameid/2436940';
+
+let requestSerial = 0;
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+export async function get(pathOrUrl, timeoutMs = 15000) {
+  requestSerial++;
+  const url = pathOrUrl.startsWith('http') ? pathOrUrl : BASE + (pathOrUrl.startsWith('/') ? '' : '/') + pathOrUrl;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctl.signal });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${url}: ${text.slice(0, 300)}`);
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function getJson(pathOrUrl, timeoutMs = 15000) {
+  return JSON.parse(await get(pathOrUrl, timeoutMs));
+}
+
+export async function tryJson(pathOrUrl, timeoutMs = 5000) {
+  try {
+    return await getJson(pathOrUrl, timeoutMs);
+  } catch {
+    return null;
+  }
+}
+
+export async function health(timeoutMs = 4000) {
+  return tryJson('/health', timeoutMs);
+}
+
+export async function waitFor(check, { timeoutMs = 60000, intervalMs = 1000, label = 'condition' } = {}) {
+  const started = Date.now();
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const value = await check();
+      if (value) return value;
+    } catch (ex) {
+      lastError = ex;
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(`timeout waiting for ${label} after ${timeoutMs} ms` + (lastError ? ` (last: ${lastError.message})` : ''));
+}
+
+export function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isGameRunning() {
+  const out = spawnSync('tasklist.exe', ['/FI', 'IMAGENAME eq Sephiria.exe', '/NH'], { encoding: 'utf8' });
+  return /Sephiria\.exe/i.test(out.stdout || '');
+}
+
+export async function waitBridge(timeoutMs = 90000) {
+  return waitFor(() => health(), { timeoutMs, intervalMs: 1500, label: 'bridge /health' });
+}
+
+export function killGame() {
+  spawnSync('taskkill.exe', ['/IM', 'Sephiria.exe', '/F'], { stdio: 'ignore' });
+}
+
+export function launchGame() {
+  // spawnSync + `start` returns immediately (the launcher hands off to Steam) and leaves no
+  // pending libuv handle behind, which is what caused the UV_HANDLE_CLOSING assertion on exit.
+  spawnSync('cmd.exe', ['/c', 'start', '', STEAM_URL], { stdio: 'ignore', windowsHide: true, timeout: 15000 });
+}
+
+export async function ensureRunning({ restart = false, log = () => {} } = {}) {
+  if (restart) {
+    log('restarting game');
+    killGame();
+    await sleep(4000);
+  }
+  let h = await health();
+  if (!h || !h.ok) {
+    log('launching game');
+    launchGame();
+    h = await waitBridge();
+  }
+  log(`bridge ok: plugin ${h.version} · ${h.scene}`);
+  return h;
+}
+
+export async function arm(minutes = 120) {
+  return getJson(`/arm?minutes=${minutes}`);
+}
+
+export async function disarm() {
+  return getJson('/disarm');
+}
+
+/** Wait until the game is in MainWorld; arms the gate first if it is still on the title screen. */
+export async function waitWorld({ timeoutMs = 180000, log = () => {} } = {}) {
+  const h = await health();
+  if (h && h.scene === 'MainWorld') return h;
+  if (h && h.scene === 'Title') {
+    log('title screen reached, arming auto-enter');
+    await arm();
+  } else {
+    // still booting: arm right away, the plugin reads the marker when the title appears
+    await tryJson('/arm?minutes=120').catch(() => null);
+  }
+  return waitFor(async () => {
+    const cur = await health();
+    return cur && cur.scene === 'MainWorld' ? cur : null;
+  }, { timeoutMs, intervalMs: 2000, label: 'MainWorld' });
+}
+
+// ---------- isolation ----------
+
+export function copyDir(src, dst) {
+  ensureDir(dst);
+  fs.cpSync(src, dst, { recursive: true, force: true });
+}
+
+export function snapshot(name) {
+  const dir = path.join(STATE, name);
+  fs.rmSync(dir, { recursive: true, force: true });
+  ensureDir(dir);
+  if (fs.existsSync(ADDONS)) copyDir(ADDONS, path.join(dir, 'AddOns'));
+  if (fs.existsSync(PLUGINS)) copyDir(PLUGINS, path.join(dir, 'plugins'));
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({
+    name,
+    createdAt: new Date().toISOString(),
+    addons: fs.existsSync(ADDONS) ? fs.readdirSync(ADDONS) : [],
+    plugins: fs.existsSync(PLUGINS) ? fs.readdirSync(PLUGINS) : [],
+  }, null, 2));
+  return dir;
+}
+
+export function restore(name) {
+  const dir = path.join(STATE, name);
+  if (!fs.existsSync(dir)) throw new Error(`no snapshot named ${name}`);
+  const wipe = (target) => {
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+    } catch (ex) {
+      if (ex && (ex.code === 'EPERM' || ex.code === 'EBUSY')) {
+        const err = new Error(`${target} is locked${isGameRunning() ? ' (the game is running — stop it first, or run with --keep)' : ''}`);
+        err.locked = true;
+        throw err;
+      }
+      throw ex;
+    }
+  };
+  wipe(ADDONS);
+  wipe(PLUGINS);
+  if (fs.existsSync(path.join(dir, 'AddOns'))) copyDir(path.join(dir, 'AddOns'), ADDONS);
+  if (fs.existsSync(path.join(dir, 'plugins'))) copyDir(path.join(dir, 'plugins'), PLUGINS);
+  return dir;
+}
+
+export function backupSaves(tag) {
+  const dir = path.join(STATE, `saves-${tag}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  ensureDir(dir);
+  const saved = [];
+  if (fs.existsSync(SAVES)) {
+    for (const f of fs.readdirSync(SAVES)) {
+      if (/\.sav$/i.test(f)) {
+        fs.copyFileSync(path.join(SAVES, f), path.join(dir, f));
+        saved.push(f);
+      }
+    }
+  }
+  return { dir, files: saved };
+}
+
+export function restoreSaves(tag) {
+  const dir = path.join(STATE, `saves-${tag}`);
+  if (!fs.existsSync(dir)) throw new Error(`no save backup named ${tag}`);
+  for (const f of fs.readdirSync(dir)) {
+    if (/\.sav$/i.test(f)) fs.copyFileSync(path.join(dir, f), path.join(SAVES, f));
+  }
+  return dir;
+}
+
+// ---------- mods ----------
+
+export function modDir(name) {
+  return path.join(WORK, name);
+}
+
+export function readManifest(name) {
+  const p = path.join(modDir(name), 'mod.json');
+  if (!fs.existsSync(p)) throw new Error(`missing ${p}`);
+  return JSON.parse(fs.readFileSync(p, 'utf8'));
+}
+
+/** Copies the manifest's deploy entries into the game (AddOns/<folder> or BepInEx/plugins/<folder>). */
+export function deployMod(name, log = () => {}) {
+  const manifest = readManifest(name);
+  const base = modDir(name);
+  const deploy = manifest.deploy || {};
+  const placed = [];
+  for (const entry of deploy.addons || []) {
+    const from = path.join(base, entry.src || 'dist');
+    const to = path.join(ADDONS, entry.folder || name);
+    fs.rmSync(to, { recursive: true, force: true });
+    copyDir(from, to);
+    placed.push(to);
+  }
+  for (const entry of deploy.plugins || []) {
+    const from = path.join(base, entry.src || 'dist');
+    const to = path.join(PLUGINS, entry.folder || name);
+    fs.rmSync(to, { recursive: true, force: true });
+    copyDir(from, to);
+    placed.push(to);
+  }
+  log(`deployed ${name}: ${placed.length} target(s)`);
+  return placed;
+}
+
+export function undeployMod(name, log = () => {}) {
+  const manifest = readManifest(name);
+  const deploy = manifest.deploy || {};
+  for (const entry of deploy.addons || []) {
+    fs.rmSync(path.join(ADDONS, entry.folder || name), { recursive: true, force: true });
+  }
+  for (const entry of deploy.plugins || []) {
+    fs.rmSync(path.join(PLUGINS, entry.folder || name), { recursive: true, force: true });
+  }
+  log(`undeployed ${name}`);
+}
+
+// ---------- assertions ----------
+
+export function pick(obj, fieldPath) {
+  if (!fieldPath) return obj;
+  // payload keys may contain dots themselves ("p0.name"), so try the literal key first
+  if (obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, fieldPath)) return obj[fieldPath];
+  let cur = obj;
+  for (const part of String(fieldPath).split('.')) {
+    if (cur == null) return undefined;
+    cur = cur[part];
+  }
+  return cur;
+}
+
+export function compare(op, actual, expected) {
+  switch (op) {
+    case '==': return deepEqual(actual, expected);
+    case '!=': return !deepEqual(actual, expected);
+    case '>': return Number(actual) > Number(expected);
+    case '>=': return Number(actual) >= Number(expected);
+    case '<': return Number(actual) < Number(expected);
+    case '<=': return Number(actual) <= Number(expected);
+    case 'contains': return String(actual ?? '').includes(String(expected));
+    case 'matches': return new RegExp(String(expected)).test(String(actual ?? ''));
+    case 'exists': return actual !== undefined && actual !== null;
+    default: throw new Error(`unknown op ${op}`);
+  }
+}
+
+function deepEqual(a, b) {
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) < 1e-9;
+  if (a && b && typeof a === 'object' && typeof b === 'object') return JSON.stringify(a) === JSON.stringify(b);
+  return a === b;
+}
+
+export function numDiff(a, b, tolerance) {
+  const d = Math.abs(Number(a) - Number(b));
+  return d <= tolerance;
+}
+
+// ---------- artifacts ----------
+
+export function artifactsDir(suiteName) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const dir = path.join(RUNS, `${stamp}-${suiteName.replace(/[^a-z0-9_-]+/gi, '-')}`);
+  ensureDir(dir);
+  return dir;
+}
+
+export async function captureArtifacts(dir) {
+  ensureDir(dir);
+  const grab = async (name, p) => {
+    try {
+      const text = await get(p, 8000);
+      fs.writeFileSync(path.join(dir, name), text);
+    } catch (ex) {
+      fs.writeFileSync(path.join(dir, name + '.error.txt'), String(ex.message || ex));
+    }
+  };
+  await grab('health.json', '/health');
+  await grab('state.json', '/state');
+  await grab('logs.json', '/logs?n=300');
+  await grab('events.json', '/events?n=200');
+  await grab('runs.json', '/runs');
+  return dir;
+}
+
+export { requestSerial };

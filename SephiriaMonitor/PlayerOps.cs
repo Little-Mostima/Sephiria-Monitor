@@ -141,6 +141,43 @@ namespace SephiriaMonitor
             return Json.Write(root);
         }
 
+        /// <summary>
+        /// Fixed (stone-tablet) engravings currently loaded on the server. They live in
+        /// GridInventory.fixedEngravingsOnServer, not in the scene, so /objects cannot see them —
+        /// this is the observation point for restore bugs and the regression fixture for engraving-fix.
+        /// </summary>
+        public static string Engravings()
+        {
+            PlayerAvatar p = Player();
+            Dictionary<string, object> root = Json.Obj();
+            if (p == null || p.Inventory == null)
+            {
+                root["error"] = "no player";
+                return Json.Write(root);
+            }
+            List<object> list = new List<object>();
+            List<FixedEngraving> src = p.Inventory.fixedEngravingsOnServer;
+            if (src != null)
+            {
+                foreach (FixedEngraving f in src)
+                {
+                    Dictionary<string, object> row = Json.Obj();
+                    row["entityID"] = f.entityID;
+                    row["instanceID"] = f.instanceID;
+                    row["external"] = f.createdByExternalSystem;
+                    row["effects"] = f.effectRange != null ? f.effectRange.Count : 0;
+                    list.Add(row);
+                }
+            }
+            root["count"] = list.Count;
+            root["items"] = list;
+            root["server"] = Mirror.NetworkServer.active;
+            root["saveCount"] = SaveManager.CurrentRun != null
+                ? SaveManager.CurrentRun.GetInt("Player0Inventory_FixedEngraving_Count", -1)
+                : -1;
+            return Json.Write(root);
+        }
+
         public static string Heal(float amount)
         {
             PlayerAvatar p = Player();

@@ -1,0 +1,16 @@
+{
+  "name": "hello-runner",
+  "game": {},
+  "timeoutSec": 240,
+  "mods": [],
+  "steps": [
+    { "expect": { "path": "/health", "field": "ok", "op": "==", "value": true } },
+    { "expect": { "path": "/health", "field": "scene", "op": "==", "value": "MainWorld", "timeoutMs": 150000 } },
+    { "expect": { "path": "/health", "field": "gameVersion", "op": "exists" } },
+    { "baseline": { "key": "plugin.version", "path": "/health", "field": "version" } },
+    { "baseline": { "key": "game.version", "path": "/health", "field": "gameVersion" } },
+    { "expect": { "path": "/state", "field": "db", "op": "==", "value": "done", "timeoutMs": 60000 } },
+    { "baseline": { "key": "inventory.player", "path": "/inventory", "field": "p0.name" } },
+    { "expect": { "path": "/objects", "field": "count", "op": ">=", "value": 0 } }
+  ]
+}
