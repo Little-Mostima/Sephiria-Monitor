@@ -8,7 +8,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.20.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.21.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -116,7 +116,7 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.20.0
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.21.0
 node tools\selfcheck.mjs                            # 期望 23 passed, 0 failed
 ```
 
@@ -184,7 +184,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | `sephiria_merchant` | **写操作**：`action=merchants` 列出商人+货架；`floors` 列出本局楼层及计划商人类型；`goto` 跳到指定楼层（`floor=` / `to=vendor`）；`tp` 传送到商人旁；`shop` 打开商店面板；`sample` 用真实配货算法抽样（不改游戏状态） |
 | `sephiria_travel` | **写操作**：`action=spots` 列出当前层的交互点（NPC/传送门/祭坛/奇迹选择器/床/任务板，含 type/name/pos/distance）；`use` 传送到该点并触发它的交互（与玩家按 F 同一条事件链 `Interactable.Interactive`）；`rooms` 列出程序化楼层的房间实例（边界/中心/传送点）；`jump` 传送到指定房间（`room=` 名字或 `index=`） |
 | `sephiria_mods` | **测 mod 主力**：`action=list` 已加载的 BepInEx / AddOns / 工坊包（来源、状态、dll 路径）；`patches` 按 owner 列 Harmony 补丁（`q=` 方法名、`owner=` modId）；`data` 你的 mod 注册了哪些行（id ≥ 900000）；`l10n` 解析 `key=` 或审计 `prefix=`；**`options`** 读所有 mod 设置页，或 `set=<key>&value=<v>&mod=<modId>` **写**（走游戏自己的 option 对象，会触发回调并落盘 `DeviceOptions.xml`） |
-| `sephiria_ui` | UI 探针：`action=list` 打开的控件栈、`widgets` 注册的 UI 元素名、`open`/`close` 按名字或类型开/关面板（写操作；面板懒加载，会自动经 `UIManager.GetElement` 解析） |
+| `sephiria_ui` (`text` reads panel text without screenshots) | UI 探针：`action=list` 打开的控件栈、`widgets` 注册的 UI 元素名、`open`/`close` 按名字或类型开/关面板（写操作；面板懒加载，会自动经 `UIManager.GetElement` 解析） |
 | `sephiria_player` | **写操作**：`action=god`（`on=1` 只回血、可被索敌；`invuln=1` 真无敌但 AI 会跳过你）、`boss`（Boss 血量/位置/当前动作/目标）、`heal/money/level/stat`、`config`（`npcDamage=0` 不记录 NPC 互殴） |
 | `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
@@ -211,13 +211,13 @@ tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则
 
 第一个产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿；打包产物按工坊形态装进 `WorkshopLocal\\` 后 `workshop-install` 套件 `PASS 7/7`（日志出现 loaded、40 s 内产出备份）。
 
-`/engravings`（0.20.0）是配套的观测点：固定刻印存在 `GridInventory.fixedEngravingsOnServer` 里，不是场景对象，`/objects` 看不到——这类“非组件状态”必须由服务端读点暴露，否则很容易把“看不见”写成“丢了”。
+`/engravings`（0.21.0）是配套的观测点：固定刻印存在 `GridInventory.fixedEngravingsOnServer` 里，不是场景对象，`/objects` 看不到——这类“非组件状态”必须由服务端读点暴露，否则很容易把“看不见”写成“丢了”。
 
 ## 7. 版本记录
 
 | 版本 | 变更 |
 | --- | --- |
-| **0.20.0** | **观测点补齐**：新增 `/engravings`（服务端读 `fixedEngravingsOnServer`，`/objects` 看不到非组件类状态）；版本号与文档同步。配套新增 mod 工坊工具链：`tools/runner`（JSON 套件驱动实机回归）、`tools/preflight.mjs`（一键门禁）、`tools/pack-workshop.mjs`（工坊打包） |
+| **0.21.0** | **观测点补齐**：新增 `/engravings`（服务端读 `fixedEngravingsOnServer`，`/objects` 看不到非组件类状态）；版本号与文档同步。配套新增 mod 工坊工具链：`tools/runner`（JSON 套件驱动实机回归）、`tools/preflight.mjs`（一键门禁）、`tools/pack-workshop.mjs`（工坊打包） |
 | **0.19.0** | **自动进档改成双钥匙、一次性**：配置 `[title] AutoEnter` 默认 `false`（总开关），且必须存在标记文件 `BepInEx\plugins\SephiriaMonitor\autoenter.on`（内含 2 小时过期时间戳）才会进档；进档后插件自己删除标记，且**每个进程只触发一次**——退回主界面不会再被拽进存档。新增 `/arm?minutes=` `/disarm` |
 | **0.18.0** | 测 mod 三件能力补齐：`/savekey` `/savedump`（读写存档键）、`/modoptions?set=`（写 mod 设置）、`/logs?after=`（增量日志）；`/combat.playerTaken` 改为按 `dealt` 统计（另给 `rawTotal`） |
 | **0.17.1** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |

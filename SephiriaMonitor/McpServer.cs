@@ -846,7 +846,7 @@ namespace SephiriaMonitor
                      "UI probe: action=list returns the open control stack (depth/name/type/esc); widgets lists registered UI element names; open/close a panel by name or type substring (write ops, useful to check a mod's panel).",
                      Schema(new[] { "action", "name", "type" }, new JObject
                      {
-                         ["action"] = Prop("string", "list|widgets|open|close (default list)"),
+                         ["action"] = Prop("string", "list|widgets|open|close|text (default list; text dumps what the open panels say)"),
                          ["name"] = Prop("string", "gameObject or type substring, e.g. Inventory or UI_Charm"),
                          ["type"] = Prop("string", "fallback type substring for open")
                      })),

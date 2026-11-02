@@ -467,6 +467,52 @@ namespace SephiriaMonitor
                 return root;
             }
 
+            if (act == "text")
+            {
+                // Read what the open panels actually say, without a screenshot. Text components are
+                // matched by type NAME (the game uses TextMeshPro in some panels and uGUI Text in
+                // others); reflection keeps this file free of extra assembly references.
+                const int max = 400;
+                var rows = new JArray();
+                var stackAll = mgr.AllControlStack;
+                if (stackAll != null)
+                {
+                    for (int s = 0; s < stackAll.Count; s++)
+                    {
+                        var layer = stackAll[s];
+                        if (layer == null) continue;
+                        foreach (UIBase ui in layer)
+                        {
+                            if (ui == null || !ui.gameObject.activeInHierarchy) continue;
+                            var row = new JObject();
+                            row["name"] = ui.gameObject.name;
+                            row["type"] = ui.GetType().Name;
+                            var texts = new JArray();
+                            foreach (Component c in ui.GetComponentsInChildren<Component>(true))
+                            {
+                                if (c == null) continue;
+                                string cn = c.GetType().Name;
+                                if (cn != "Text" && cn != "TMP_Text" && cn != "TextMeshProUGUI" && cn != "TextMeshPro") continue;
+                                PropertyInfo prop = c.GetType().GetProperty("text");
+                                if (prop == null) continue;
+                                string v = Convert.ToString(prop.GetValue(c, null));
+                                if (string.IsNullOrEmpty(v)) continue;
+                                v = v.Trim();
+                                if (v.Length == 0) continue;
+                                if (v.Length > 200) v = v.Substring(0, 200);
+                                texts.Add(v);
+                                if (texts.Count >= max) break;
+                            }
+                            row["texts"] = texts;
+                            rows.Add(row);
+                        }
+                    }
+                }
+                root["panels"] = rows;
+                root["keys"] = "panels[].name,type,texts";
+                return root;
+            }
+
             if (act == "open" || act == "close")
             {
                 var hits = new JArray();

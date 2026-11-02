@@ -164,6 +164,8 @@ async function tool(name, args = {}) {
 
     const ui = await tool('sephiria_ui', { action: 'list' });
     check('ui stack', typeof ui.depth === 'number', `depth=${ui.depth}, open=${(ui.open || []).length}`);
+    const uiText = await tool('sephiria_ui', { action: 'text' });
+    check('ui text', Array.isArray(uiText.panels), `${(uiText.panels || []).length} panel(s)`);
   } catch (e) {
     bad('mods', e.message);
   }
