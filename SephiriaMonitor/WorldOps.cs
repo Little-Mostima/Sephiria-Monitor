@@ -125,11 +125,11 @@ namespace SephiriaMonitor
             return Json.Write(root);
         }
 
-        public static string Rooms()
+        public static string Rooms(string floor)
         {
             JsonObject root = Json.Obj();
             PlayerAvatar player = LocalPlayer();
-            FloorGenerator gen = NearestGenerator(player);
+            FloorGenerator gen = GeneratorFor(player, floor);
             if (gen == null)
             {
                 root["error"] = "no FloorGenerator";
@@ -169,7 +169,7 @@ namespace SephiriaMonitor
             return Json.Write(root);
         }
 
-        public static string Jump(string room, string index, float offsetX, float offsetY)
+        public static string Jump(string floor, string room, string index, float offsetX, float offsetY)
         {
             JsonObject root = Json.Obj();
             PlayerAvatar player = LocalPlayer();
@@ -178,7 +178,7 @@ namespace SephiriaMonitor
                 root["error"] = "no local player";
                 return Json.Write(root);
             }
-            FloorGenerator gen = NearestGenerator(player);
+            FloorGenerator gen = GeneratorFor(player, floor);
             if (gen == null)
             {
                 root["error"] = "no FloorGenerator";
@@ -220,7 +220,7 @@ namespace SephiriaMonitor
             if (pick == null)
             {
                 root["error"] = "room not found";
-                root["rooms"] = Rooms();
+                root["rooms"] = Rooms(floor);
                 return Json.Write(root);
             }
             Vector2 center = (pick.bottomLeft + pick.topRight) * 0.5f;
@@ -310,6 +310,28 @@ namespace SephiriaMonitor
                 }
             }
             return null;
+        }
+
+        private static FloorGenerator GeneratorFor(PlayerAvatar player, string expected)
+        {
+            if (!string.IsNullOrEmpty(expected))
+            {
+                string want = expected.Replace("(Clone)", "").Trim();
+                FloorGenerator[] all = UnityEngine.Object.FindObjectsByType<FloorGenerator>(FindObjectsSortMode.None);
+                foreach (FloorGenerator g in all)
+                {
+                    if (g == null)
+                    {
+                        continue;
+                    }
+                    string gn = g.name.Replace("(Clone)", "").Trim();
+                    if (gn == want || gn.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return g;
+                    }
+                }
+            }
+            return NearestGenerator(player);
         }
 
         private static FloorGenerator NearestGenerator(PlayerAvatar player)

@@ -409,6 +409,29 @@ namespace SephiriaMonitor
                     case "/stage":
                         return MerchantOps.Stage(Query(query, "name", ""), Query(query, "to", ""));
 
+                    case "/god":
+                        return PlayerOps.GodSet(Query(query, "on", "1") != "0",
+                            Has(query, "invuln") ? Query(query, "invuln", "0") == "1" : (bool?)null);
+                    case "/boss":
+                        return PlayerOps.Boss();
+                    case "/config":
+                        if (Has(query, "npcDamage"))
+                        {
+                            // npcDamage=0 means "do not record NPC-vs-NPC damage"
+                            Events.SkipNpcDamage = Query(query, "npcDamage", "1") == "0";
+                        }
+                        return Json.Write(Json.Obj()
+                            .Add("recordNpcDamage", !Events.SkipNpcDamage));
+                    case "/pinfo":
+                        return PlayerOps.Info();
+                    case "/heal":
+                        return PlayerOps.Heal(Num(query, "hp", 0f));
+                    case "/money":
+                        return PlayerOps.SetMoney(Int(query, "set", 0));
+                    case "/level":
+                        return PlayerOps.SetLevel(Int(query, "set", 1));
+                    case "/stat":
+                        return PlayerOps.SetStat(Query(query, "name", ""), Int(query, "value", 0));
                     case "/merchants":
                         return MerchantOps.Merchants();
                     case "/floors":
@@ -440,11 +463,11 @@ namespace SephiriaMonitor
                                 Query(query, "tp", "1") != "0", Num(query, "ox", 1.2f), Num(query, "oy", 0f));
                         }, 8000);
                     case "/gridrooms":
-                        return MainThreadPump.Run(delegate { return WorldOps.Rooms(); }, 8000);
+                        return MainThreadPump.Run(delegate { return WorldOps.Rooms(Query(query, "floor", "")); }, 8000);
                     case "/jump":
                         return MainThreadPump.Run(delegate
                         {
-                            return WorldOps.Jump(Query(query, "room", ""), Query(query, "index", ""), Num(query, "ox", 0f), Num(query, "oy", 0f));
+                            return WorldOps.Jump(Query(query, "floor", ""), Query(query, "room", ""), Query(query, "index", ""), Num(query, "ox", 0f), Num(query, "oy", 0f));
                         }, 8000);
                     case "/progress":
                         return Filtered(new string[] { "run.floor", "run.hard", "run.seed", "run.env" });

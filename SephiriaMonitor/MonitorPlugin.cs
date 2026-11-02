@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using BepInEx;
@@ -11,7 +11,7 @@ namespace SephiriaMonitor
     public class MonitorPlugin : BaseUnityPlugin
     {
         public const string Guid = "com.surveillance.sephiriamonitor";
-        public const string Version = "0.12.0";
+        public const string Version = "0.15.0";
 
         public static MonitorPlugin Instance { get; private set; }
         public static string OutDir { get; private set; }
@@ -49,6 +49,7 @@ namespace SephiriaMonitor
                     LogInfo("BOOT|game_hooks|disabled");
                 }
                 MonitorPatches.Apply();
+                PlayerOps.Apply();
                 BridgeServer.Start();
                 LogInfo("BOOT|ready|bridge=" + BridgeServer.Port + "|session=" + Session.Root);
             }

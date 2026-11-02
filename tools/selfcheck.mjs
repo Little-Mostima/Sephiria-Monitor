@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 // End-to-end check of the plugin's bridge + embedded MCP server.
 // Requires the game running with the plugin installed.
 //
@@ -80,7 +80,7 @@ async function tool(name, args = {}) {
 
   const list = await rpc('tools/list', {});
   const tools = (list && list.result && list.result.tools) || [];
-  check('tools/list', tools.length === 13, `${tools.length} tools`);
+  check('tools/list', tools.length === 14, `${tools.length} tools`);
   check('tool names', tools.map((t) => t.name).includes('sephiria_brief'), tools.map((t) => t.name).join(','));
   check('tool schemas', tools.every((t) => t.inputSchema && t.inputSchema.type === 'object'), 'all object-rooted');
 

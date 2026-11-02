@@ -41,6 +41,10 @@ namespace SephiriaMonitor
 
         private static int damageRows, probes, kills, deaths, playerDeaths, loots, moneys, exps, spawns, despawns;
         private static int failTotal, failAbsolute, failDodge, failBlock, failPass;
+        // side split: own weapon/skill hits vs summon(pet) hits vs npc-vs-npc noise
+        private static int playerRows, playerSuccess, playerDealt;
+        private static int petRows, petSuccess;
+        private static int npcRows;
         private static double dealtTotal;
         private static int takenHits;
         private static double takenTotal, takenMax;
@@ -145,6 +149,33 @@ namespace SephiriaMonitor
             AggOf(ByVictimType, victimType).Add(raw);
             if (victim != null) AggOf(ByVictim, victim).Add(raw);
 
+            bool byPlayer = Bool(e, "byPlayer");
+            bool onPlayerRow = Bool(e, "isPlayer");
+            if (byPlayer)
+            {
+                // weapon/skill ids are the player's own swings; Charm_*/others are summons and pets
+                bool ownSwing = id != null &&
+                    (id.StartsWith("Weapon_", StringComparison.Ordinal) || id.StartsWith("Skill_", StringComparison.Ordinal));
+                if (ownSwing)
+                {
+                    playerRows++;
+                    if (success)
+                    {
+                        playerSuccess++;
+                        playerDealt += (int)Num(e, "dealt", 0);
+                    }
+                }
+                else
+                {
+                    petRows++;
+                    if (success) petSuccess++;
+                }
+            }
+            else if (!onPlayerRow)
+            {
+                npcRows++;
+            }
+
             if (victimType == "PlayerAvatar")
             {
                 takenHits++;
@@ -227,6 +258,14 @@ namespace SephiriaMonitor
 
                 int successRows = damageRows - failTotal;
                 root.Add("hitRate", damageRows == 0 ? 0 : Math.Round(100.0 * successRows / damageRows, 1));
+                root.Add("bySide", SephiriaMonitor.Json.Obj()
+                    .Add("playerHits", playerRows)
+                    .Add("playerSuccess", playerSuccess)
+                    .Add("playerDealt", playerDealt)
+                    .Add("hitRateWeapon", playerRows == 0 ? 0 : Math.Round(100.0 * playerSuccess / playerRows, 1))
+                    .Add("petHits", petRows)
+                    .Add("petSuccess", petSuccess)
+                    .Add("npcNoise", npcRows));
                 root.Add("fail", SephiriaMonitor.Json.Obj()
                     .Add("total", failTotal)
                     .Add("absolute", failAbsolute)

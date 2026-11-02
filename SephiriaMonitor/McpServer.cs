@@ -156,6 +156,7 @@ namespace SephiriaMonitor
                 case "sephiria_brief": text = Brief(args); break;
                 case "sephiria_status": text = Status(args); break;
                 case "sephiria_merchant": text = Merchant(args); break;
+                case "sephiria_player": text = PlayerTool(args); break;
                     case "sephiria_travel": text = Travel(args); break;
                 case "sephiria_inventory": text = Raw("/inventory"); break;
                 case "sephiria_world": text = World(args); break;
@@ -341,6 +342,42 @@ namespace SephiriaMonitor
             return Raw(route + query);
         }
 
+        private static string PlayerTool(JObject args)
+        {
+            string action = (Str(args, "action") ?? "info").ToLowerInvariant();
+            switch (action)
+            {
+                case "god":
+                    string g = "/god?on=" + (Bool(args, "on") ? "1" : "0");
+                    JToken inv;
+                    if (args.TryGetValue("invuln", out inv) && inv != null && inv.Type != JTokenType.Null)
+                    {
+                        g += "&invuln=" + (Bool(args, "invuln") ? "1" : "0");
+                    }
+                    return Raw(g);
+                case "boss":
+                    return Raw("/boss");
+                case "config":
+                    return Raw("/config?npcDamage=" + (Bool(args, "npcDamage") ? "1" : "0"));
+                case "heal":
+                    return Raw("/heal?hp=" + ClampInt(args, "hp", 0, 0, 999999));
+                case "money":
+                    return Raw("/money?set=" + ClampInt(args, "set", 0, 0, 100000000));
+                case "level":
+                    return Raw("/level?set=" + ClampInt(args, "set", 1, 1, 999));
+                case "stat":
+                    return Raw("/stat?name=" + UrlEnc(Str(args, "name") ?? "") +
+                               "&value=" + ClampInt(args, "value", 0, -1000000, 1000000));
+                default:
+                    return Raw("/pinfo");
+            }
+        }
+
+        private static string UrlEnc(string s)
+        {
+            return Uri.EscapeDataString(s ?? "");
+        }
+
         private static string Travel(JObject args)
         {
             string action = (Str(args, "action") ?? "spots").ToLowerInvariant();
@@ -363,7 +400,7 @@ namespace SephiriaMonitor
                     throw new ArgumentException("action must be spots|use|rooms|jump");
             }
             var query = new StringBuilder();
-            foreach (string key in new[] { "type", "name", "index", "room", "max", "near", "ox", "oy" })
+            foreach (string key in new[] { "type", "name", "index", "room", "max", "near", "ox", "oy", "floor" })
             {
                 string v = Str(args, key);
                 if (string.IsNullOrEmpty(v)) continue;
@@ -678,6 +715,19 @@ namespace SephiriaMonitor
                          ["all"] = Prop("boolean", "action=spots: include points on other loaded floors"),
                          ["ox"] = Prop("number", "teleport offset x"),
                          ["oy"] = Prop("number", "teleport offset y")
+                     })),
+                Tool("sephiria_player",
+                     "Player state control (server side, for testing): action=god(on=1|0, invuln=1 for true invulnerability; default god only heals, because invulnerable players are skipped by AI target search); boss lists boss/miniboss hp and what each boss AI is targeting (use it when a boss seems stuck); heal(hp); money(set); level(set); stat(name,value) sets a custom stat absolutely; no action = info.",
+                     Schema(new[] { "action", "on", "invuln", "hp", "set", "name", "value" }, new JObject
+                     {
+                         ["action"] = Prop("string", "god|boss|info|heal|money|level|stat|config"),
+                         ["on"] = Prop("boolean", "god on/off"),
+                         ["invuln"] = Prop("boolean", "god mode: true invulnerability (AI cannot target you). omit for heal-only"),
+                         ["npcDamage"] = Prop("boolean", "config: record NPC-vs-NPC damage events (false = much smaller events.jsonl)"),
+                         ["hp"] = Prop("number", "heal target hp, 0 = full"),
+                         ["set"] = Prop("integer", "absolute value for money/level"),
+                         ["name"] = Prop("string", "custom stat name, e.g. EVASION"),
+                         ["value"] = Prop("integer", "absolute stat value")
                      })),
                 Tool("sephiria_screenshot", "Fallback screenshot; prefer the JSON tools.", Schema())
             };

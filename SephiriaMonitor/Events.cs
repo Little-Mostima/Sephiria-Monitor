@@ -26,6 +26,36 @@ namespace SephiriaMonitor
         private static int kills;
         private static int spawnCount;
         private static int despawnCount;
+        /// <summary>true = 丢掉 NPC 互殴的 damage 事件（约占单局伤害事件 1/3）。
+        /// 默认 false（保留全部），可用 /config?npcDamage=0 打开。</summary>
+        public static bool SkipNpcDamage;
+
+        private static bool IsNpcDamageNoise(Dictionary<string, object> e)
+        {
+            object kind;
+            if (!e.TryGetValue("kind", out kind) || !(kind is string) || (string)kind != "damage")
+            {
+                return false;
+            }
+            return !Truthy(e, "byPlayer") && !Truthy(e, "isPlayer");
+        }
+
+        private static bool Truthy(Dictionary<string, object> e, string key)
+        {
+            object v;
+            if (!e.TryGetValue(key, out v) || v == null)
+            {
+                return false;
+            }
+            try
+            {
+                return Convert.ToBoolean(v, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return false;
+            }
+        }
         /// <summary>玩家侧造成的击杀数（death 事件里 byPlayer 的那些）。</summary>
         public static int KillCount { get { lock (Gate) { return kills; } } }
         public static int SpawnCount { get { lock (Gate) { return spawnCount; } } }
@@ -41,6 +71,10 @@ namespace SephiriaMonitor
         public static void Add(Dictionary<string, object> e, bool persist)
         {
             if (e == null)
+            {
+                return;
+            }
+            if (SkipNpcDamage && IsNpcDamageNoise(e))
             {
                 return;
             }

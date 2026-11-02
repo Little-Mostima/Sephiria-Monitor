@@ -8,7 +8,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.11.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.15.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -18,7 +18,7 @@
 SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
   MonitorPlugin.cs        # 插件入口，版本号
   BridgeServer.cs         # 本地 HTTP 桥（GET 路由 + POST /mcp 入口）
-  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，13 个工具）
+  McpServer.cs            # 内嵌 MCP 服务器（JSON-RPC，14 个工具）
   MerchantOps.cs          # 商人/楼层操作：列表、传送、开店、货架抽样
   Live.cs                 # 实时读取（inventory / combos / statuses）
   Combat.cs               # 战斗事件在线聚合
@@ -34,7 +34,7 @@ install.ps1               # 一键安装/升级
 `SurveillanceMod/`（原来的 Node MCP 服务器）**已经并入插件**，不再需要单独进程。0.10.0 起：
 
 - 插件启动即监听 `47901`，同时提供 GET 路由和 `POST /mcp`；
-- MCP 的 13 个工具在 C# 里实现，内部直接复用同一套路由函数；
+- MCP 的 14 个工具在 C# 里实现，内部直接复用同一套路由函数；
 - Node 只在**客户端只会说 stdio** 时用得上（`tools/mcp-stdio.mjs`，20 行逻辑，无依赖）。
 
 ---
@@ -110,8 +110,8 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.11.0
-node tools\selfcheck.mjs                            # 期望 15 passed, 0 failed
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version = 0.15.0
+node tools\selfcheck.mjs                            # 期望 16 passed, 0 failed
 ```
 
 BepInEx 控制台里应能看到 `[Info :SephiriaMonitor] bridge listening on http://127.0.0.1:47901/`。
@@ -161,7 +161,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 ---
 
-## 5. 十二个工具
+## 5. 十四个工具
 
 | 工具 | 作用 |
 | --- | --- |
@@ -177,9 +177,10 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | `sephiria_save` | `action=slots`（存档槽）/`title`（标题状态）/`enter`（进档，轮询到 MainWorld） |
 | `sephiria_merchant` | **写操作**：`action=merchants` 列出商人+货架；`floors` 列出本局楼层及计划商人类型；`goto` 跳到指定楼层（`floor=` / `to=vendor`）；`tp` 传送到商人旁；`shop` 打开商店面板；`sample` 用真实配货算法抽样（不改游戏状态） |
 | `sephiria_travel` | **写操作**：`action=spots` 列出当前层的交互点（NPC/传送门/祭坛/奇迹选择器/床/任务板，含 type/name/pos/distance）；`use` 传送到该点并触发它的交互（与玩家按 F 同一条事件链 `Interactable.Interactive`）；`rooms` 列出程序化楼层的房间实例（边界/中心/传送点）；`jump` 传送到指定房间（`room=` 名字或 `index=`） |
+| `sephiria_player` | **写操作**：`action=god`（`on=1` 只回血、可被索敌；`invuln=1` 真无敌但 AI 会跳过你）、`boss`（Boss 血量/位置/当前动作/目标）、`heal/money/level/stat`、`config`（`npcDamage=0` 不记录 NPC 互殴） |
 | `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
-同一个端口还提供 34 条只读 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
+同一个端口还提供 51 条只读 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
 
 ---
 
@@ -187,7 +188,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 | 版本 | 变更 |
 | --- | --- |
-| **0.11.0** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
+| **0.15.0** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
 | **0.12.0** | 新增「到达任何地方」工具：`/spots` `/use` `/gridrooms` `/jump`（交互点枚举与触发、程序化房间枚举与跳转），13 个工具 |
 | **0.10.0** | **MCP 服务器并入插件**（`POST /mcp`，11 工具），删除独立 Node 服务器；`hooks.json` 随插件部署，79 条挂点 |
 | 0.9.2 | 工具层精简 23 → 11 个复合工具（brief/world/save/db 合并），README 合并为单份 |
@@ -237,7 +238,7 @@ MIT License.
 
 把下面**这一句**发给任意有终端权限的 AI（Claude Code / Codex / DSH 等），它会自己完成克隆、编译、部署、启动与自检：
 
-> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.11.0、运行 `node tools\selfcheck.mjs` 确认 15 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
+> 把 https://github.com/Little-Mostima/Sephiria-Monitor 部署到我的 Sephiria：用 .NET SDK 8 编译 Release 版插件，把 `SephiriaMonitor.dll` 和 `hooks.json` 复制到 `<游戏根目录>\BepInEx\plugins\SephiriaMonitor\`，启动游戏并读档到 MainWorld，然后请求 `http://127.0.0.1:47901/health` 确认版本是 0.15.0、运行 `node tools\selfcheck.mjs` 确认 15 项全过，最后把版本号、自检结果和游戏目录告诉我；遇到问题先报告再动手，不要修改游戏本体文件。
 
 如果 AI 需要更明确的边界，可以再补一句：
 
