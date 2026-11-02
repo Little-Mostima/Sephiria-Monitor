@@ -65,10 +65,13 @@ if (!skipBuild) {
 }
 
 // 3. package + validate the artifact people will actually upload
-{
+//    Mods without workshop.json are guards/fixtures — they are testable but not publishable.
+if (!fs.existsSync(path.join(modDir, 'workshop.json'))) {
+  record('package', true, 'skipped (no workshop.json — not a publishable package)');
+} else {
   const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'pack-workshop.mjs'), modDir], { stdio: 'pipe', encoding: 'utf8' });
   if (res.status !== 0) {
-    record('package', false, ((res.stdout || '') + (res.stderr || '')).trim().split('\n').slice(-2).join(' | '));
+    record('package', false, ((res.stdout || '') + (res.stderr || '')).trim().split('\n').slice(-3).join(' | '));
     finish();
   }
   const meta = readJson(path.join(modDir, 'metadata.json'));

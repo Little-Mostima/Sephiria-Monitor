@@ -56,7 +56,7 @@ const log = (msg) => {
 
 const results = { suite: suiteName, startedAt: new Date().toISOString(), steps: [], baseline: null, meta: null, ok: true, error: null };
 
-function fail(message) {
+function fail(message, extra) {
   const err = new Error(message);
   err.assertion = true;
   throw err;

@@ -12,6 +12,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { startMinimizer, minimizeGameNow, setConsoleWindow } from './focus.mjs';
+export { minimizeGameNow, setConsoleWindow, startMinimizer } from './focus.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -90,7 +92,27 @@ export function isGameRunning() {
   return /Sephiria\.exe/i.test(out.stdout || '');
 }
 
-export async function waitBridge(timeoutMs = 90000) {
+/** Poll the bridge to liveness, minimizing the game window on the way (background launches). */
+async function waitBridgeMinimizing(timeoutMs = 150000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastMin = 0;
+  while (Date.now() < deadline) {
+    const h = await health(2500);
+    if (h && h.ok) {
+      // the window appears around the same time as the bridge: settle for a few seconds
+      for (let i = 0; i < 4; i++) { minimizeGameNow(); await sleep(1200); }
+      return h;
+    }
+    if (Date.now() - lastMin > 4000 && isGameRunning()) {
+      minimizeGameNow();
+      lastMin = Date.now();
+    }
+    await sleep(1000);
+  }
+  throw new Error('timeout waiting for bridge /health after ' + timeoutMs + ' ms');
+}
+
+export async function waitBridge(timeoutMs = 150000) {
   return waitFor(() => health(), { timeoutMs, intervalMs: 1500, label: 'bridge /health' });
 }
 
@@ -113,12 +135,12 @@ export function killGame() {
 
 // Launch and wait for the bridge. If nothing appears and the log never advanced, the launcher
 // probably lost the race against Steam (or a crashed instance still held the lock): kill and retry once.
-export async function launchAndWait({ timeoutMs = 120000, log = () => {} } = {}) {
+export async function launchAndWait({ timeoutMs = 180000, log = () => {} } = {}) {
   const playerLog = path.join(os.homedir(), 'AppData', 'LocalLow', 'TEAMHORAY', 'Sephiria', 'Player.log');
   const before = fs.existsSync(playerLog) ? fs.statSync(playerLog).mtimeMs : 0;
   launchGame();
   try {
-    return await waitBridge(timeoutMs);
+    return await waitBridgeMinimizing(timeoutMs);
   } catch (e) {
     const advanced = fs.existsSync(playerLog) && fs.statSync(playerLog).mtimeMs > before;
     if (advanced && isGameRunning()) throw e;
@@ -126,13 +148,23 @@ export async function launchAndWait({ timeoutMs = 120000, log = () => {} } = {})
     killGame();
     await sleep(2000);
     launchGame();
-    return waitBridge(timeoutMs);
+    return waitBridgeMinimizing(timeoutMs);
   }
 }
 
-export function launchGame() {
-  // spawnSync + `start` returns immediately (the launcher hands off to Steam) and leaves no
-  // pending libuv handle behind, which is what caused the UV_HANDLE_CLOSING assertion on exit.
+export function launchGame({ consoleWindow = false } = {}) {
+  // Launch the exe directly, not steam://rungameid: Steam pops its own "starting / syncing cloud"
+  // dialog, and that dialog steals focus too. Steam itself must be running for Steamworks init.
+  // The BepInEx log window is switched off by default (logs stay in LogOutput.log and /logs).
+  if (!consoleWindow) setConsoleWindow(false);
+  startMinimizer(240);
+  const exe = path.join(GAME, 'Sephiria.exe');
+  if (fs.existsSync(exe)) {
+    // spawnSync + `start` returns right away and leaves no pending libuv handle (that dangling
+    // handle is what caused `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` on exit).
+    spawnSync('cmd.exe', ['/c', 'start', '', '/min', exe], { cwd: GAME, stdio: 'ignore', windowsHide: true, timeout: 15000 });
+    return;
+  }
   spawnSync('cmd.exe', ['/c', 'start', '', STEAM_URL], { stdio: 'ignore', windowsHide: true, timeout: 15000 });
 }
 
@@ -171,6 +203,7 @@ export async function waitWorld({ timeoutMs = 180000, log = () => {} } = {}) {
     await tryJson('/arm?minutes=120').catch(() => null);
   }
   return waitFor(async () => {
+    minimizeGameNow();
     const cur = await health();
     return cur && cur.scene === 'MainWorld' ? cur : null;
   }, { timeoutMs, intervalMs: 2000, label: 'MainWorld' });
