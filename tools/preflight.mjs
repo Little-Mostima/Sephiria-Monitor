@@ -16,6 +16,8 @@ if (!target && !args.includes('--all')) {
   process.exit(2);
 }
 const skipTests = args.includes('--skip-tests');
+const tierIdx = args.indexOf('--tier');
+const tier = tierIdx >= 0 ? args[tierIdx + 1] : 'full'; // smoke | fast | full
 const skipBuild = args.includes('--skip-build');
 const asJson = args.includes('--json');
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
@@ -35,6 +37,7 @@ if (args.includes('--all')) {
     if (skipTests) childArgs.push('--skip-tests');
     if (skipBuild) childArgs.push('--skip-build');
     if (asJson) childArgs.push('--json');
+    if (tier !== 'full') childArgs.push('--tier', tier);
     const r = spawnSync(process.execPath, childArgs, { stdio: 'inherit' });
     if (r.status !== 0) failed.push(path.basename(m));
   }
@@ -104,12 +107,18 @@ let contentOnly = false;
   if (problems.length) finish();
 }
 
+// 1b. doc rot (only in --all mode: one check for the whole docs tree)
+if (args.includes('--all') && !skipTests) {
+  const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'doccheck.mjs')], { stdio: 'pipe', encoding: 'utf8' });
+  const out = ((res.stdout || '') + (res.stderr || '')).trim().split('\n').pop();
+  record('docs', res.status === 0, res.status === 0 ? 'DOCCHECK OK' : out);
+}
+
 // 2. build
 if (contentOnly) {
   record('build', true, 'skipped (content-only package: no src/)');
 } else if (!skipBuild) {
-  const script = path.join(modDir, 'build.ps1');
-  const res = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script], { stdio: 'pipe', encoding: 'utf8' });
+  const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'build-mod.mjs'), modDir], { stdio: 'pipe', encoding: 'utf8' });
   const out = ((res.stdout || '') + (res.stderr || '')).trim().split('\n').slice(-3).join(' | ');
   record('build', res.status === 0, res.status === 0 ? 'dll up to date' : out);
   if (res.status !== 0) finish();
@@ -141,7 +150,14 @@ if (!fs.existsSync(path.join(modDir, 'workshop.json'))) {
 if (!skipTests) {
   const suites = fs.readdirSync(path.join(modDir, 'tests')).filter((n) => n.endsWith('.suite.json'));
   for (const suite of suites) {
-    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), path.join(modDir, 'tests', suite), '--no-watchdog'], { stdio: 'pipe', encoding: 'utf8' });
+    const suitePath = path.join(modDir, 'tests', suite);
+    let suiteTier = 'full';
+    try { suiteTier = JSON.parse(fs.readFileSync(suitePath, 'utf8')).tier || 'full'; } catch {}
+    if (tier === 'smoke' || (tier === 'fast' && suiteTier === 'full')) {
+      record('suite:' + suite.replace('.suite.json', ''), true, `skipped (tier ${suiteTier} > ${tier})`);
+      continue;
+    }
+    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), suitePath, '--no-watchdog'], { stdio: 'pipe', encoding: 'utf8' });
     const text = ((res.stdout || '') + (res.stderr || '')).trim();
     const last = text.split('\n').filter((l) => /PASS|FAIL|FAILED/.test(l)).slice(-1)[0] || text.split('\n').slice(-1)[0];
     record('suite:' + suite.replace('.suite.json', ''), res.status === 0, last);

@@ -9,6 +9,7 @@
 //    save slots, and both are restored afterwards unless --keep is passed;
 //  * artifacts of a failed run (health/logs/events/state) are written to work/_runs/<id>/.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -314,6 +315,28 @@ export function backupSaves(tag) {
     }
   }
   return { dir, files: saved };
+}
+
+export function hashFiles(dir) {
+  const out = {};
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir)) {
+    if (!/\.sav$/i.test(f)) continue;
+    out[f] = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, f))).digest('hex');
+  }
+  return out;
+}
+
+export function verifySaves(tag) {
+  const dir = path.join(STATE, `saves-${tag}`);
+  const want = hashFiles(dir);
+  const bad = [];
+  for (const [f, h] of Object.entries(want)) {
+    const cur = path.join(SAVES, f);
+    const got = fs.existsSync(cur) ? crypto.createHash('sha256').update(fs.readFileSync(cur)).digest('hex') : null;
+    if (got !== h) bad.push(f);
+  }
+  return { ok: bad.length === 0, files: Object.keys(want).length, bad };
 }
 
 export function restoreSaves(tag) {

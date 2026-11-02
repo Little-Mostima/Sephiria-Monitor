@@ -203,6 +203,8 @@ namespace SephiriaMonitor
                         if (args["min"] != null) sb.Append("&min=").Append(ClampInt(args, "min", 900000, 0, int.MaxValue));
                         return Raw(sb.ToString());
                     }
+                case "reload":
+                    return Raw("/reload");
                 case "options":
                     {
                         string set = Str(args, "set");
@@ -837,7 +839,7 @@ namespace SephiriaMonitor
                      "Mod testing probes. action=list: every loaded mod (BepInEx plugins, AddOns folder mods, Workshop packages) with state and dll path. patches: Harmony patches grouped by owner, filter q=method substring or owner=modId. data: rows registered by your mod (id >= min, default 900000) from the boot CSV export. options: pages registered in the game Mod Options screen with live values (ours + Workshop mods). l10n: resolve key= across all languages, or audit prefix= (e.g. ModItem_) and see which languages are missing.",
                      Schema(new[] { "action", "q", "owner", "kind", "min", "key", "prefix", "lang", "limit" }, new JObject
                      {
-                         ["action"] = Prop("string", "list|patches|data|l10n|options (default list); options = the game's Mod Options pages and current values"),
+                         ["action"] = Prop("string", "list|patches|data|l10n|options|reload (default list); options = the game's Mod Options pages and current values; reload = call ReloadData() on every loaded mod that exposes it (no restart)"),
                          ["q"] = Prop("string", "patches: method substring; data: name substring"),
                          ["owner"] = Prop("string", "patches: Harmony owner (modId) substring"),
                          ["kind"] = Prop("string", "data: csv table(s), comma separated, e.g. item,weapon,status"),
