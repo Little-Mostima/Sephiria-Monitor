@@ -69,8 +69,6 @@ tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / t
 
 隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。
 
-已跑通的产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿；打包产物按工坊形态装进 `WorkshopLocal\` 后 `workshop-install` 套件 `PASS 7/7`（日志出现 loaded、40 s 内产出备份）。
-
 ---
 
 ## 2. 仓库结构
