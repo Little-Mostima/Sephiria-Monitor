@@ -238,7 +238,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 | 版本 | 变更 |
 | --- | --- |
-| **0.21.0** | **观测点补齐**：新增 `/engravings`（服务端读 `fixedEngravingsOnServer`，`/objects` 看不到非组件类状态）；版本号与文档同步。配套新增 mod 工坊工具链：`tools/runner`（JSON 套件驱动实机回归）、`tools/preflight.mjs`（一键门禁）、`tools/pack-workshop.mjs`（工坊打包） |
+| **0.21.0** | **mod 工坊工具链**：`tools/runner`（JSON 套件驱动实机回归）、`tools/preflight.mjs`（一键门禁）、`tools/pack-workshop.mjs`（工坊打包）、`tools/new-mod.mjs`（骨架生成）；桥补 `/engravings`（服务端专属附魔状态）与文档同步 |
 | **0.19.0** | **自动进档改成双钥匙、一次性**：配置 `[title] AutoEnter` 默认 `false`（总开关），且必须存在标记文件 `BepInEx\plugins\SephiriaMonitor\autoenter.on`（内含 2 小时过期时间戳）才会进档；进档后插件自己删除标记，且**每个进程只触发一次**——退回主界面不会再被拽进存档。新增 `/arm?minutes=` `/disarm` |
 | **0.18.0** | 测 mod 三件能力补齐：`/savekey` `/savedump`（读写存档键）、`/modoptions?set=`（写 mod 设置）、`/logs?after=`（增量日志）；`/combat.playerTaken` 改为按 `dealt` 统计（另给 `rawTotal`） |
 | **0.17.1** | 新增商人工具与写操作：`/merchants` `/floors` `/goto` `/tp` `/shop` `/sample`（传送到商人、开商店、配货抽样），12 个工具 |
