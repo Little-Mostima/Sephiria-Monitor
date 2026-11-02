@@ -2,13 +2,11 @@
 
 **Sephiria 的 mod 制作 + 检测工具链：AI 写 mod → 在真游戏里自动跑回归 → 打包上架。**
 
-插件只是地基：游戏跑起来后它在本地开一个接口，让 AI 读得到 mod 需要的事实、驱动得动游戏进档和断言、拿得到结果。数据接口本身不是卖点——这里不罗列"能看哪些字段"，直接说它能把 mod 做成、测过、发出去：
+让 AI 读得到 mod 需要的事实、驱动得动游戏进档和断言、拿得到结果。能把 mod 做成、测过、发出去：
 
 - **做**：`hooks.json` 79 条挂点（真实签名 + 行号 + 调用点），`tools/new-mod.mjs` 起骨架，`work/<mod>/` 隔离。
 - **测**：`tools/runner` 用 JSON 套件在真游戏里跑（起游戏 → 自动进档 → 断言 → 还原），`tools/preflight.mjs` 一条命令过门禁。
 - **发**：`tools/pack-workshop.mjs` 按工坊真实规则打包，`tools/review-status.mjs` 读审核状态。
-
-数值从游戏对象里现读，不从缓存快照翻旧值——这是 mod 断言可信的前提。
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
@@ -281,8 +279,6 @@ dotnet build SephiriaMonitor -c Release
 |---|---|
 | 上帝模式（敌人能锁定你，但伤害为 0） | 保持 `invulnerableCount = 0`（敌人照常索敌、Boss 照常进阶段），并用 Harmony 前缀把 `UnitAvatar.ApplyDefense` 对玩家的结果改成 0 |
 | 一击必杀（所有伤害 ×1000） | 写 `ECustomStat.AllDamageBonus = 100000`，关掉即回 0 |
-
-NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（默认不记录，需要时 `POST /config?npcDamage=1`）。
 
 查看当前值与所有 mod 页：`GET /modoptions`，或 MCP `sephiria_mods` 的 `action=options`。
 
