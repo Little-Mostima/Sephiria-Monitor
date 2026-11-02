@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // End-to-end check of the plugin's bridge + embedded MCP server.
 // Requires the game running with the plugin installed.
 //
@@ -80,7 +80,7 @@ async function tool(name, args = {}) {
 
   const list = await rpc('tools/list', {});
   const tools = (list && list.result && list.result.tools) || [];
-  check('tools/list', tools.length === 14, `${tools.length} tools`);
+  check('tools/list', tools.length === 16, `${tools.length} tools`);
   check('tool names', tools.map((t) => t.name).includes('sephiria_brief'), tools.map((t) => t.name).join(','));
   check('tool schemas', tools.every((t) => t.inputSchema && t.inputSchema.type === 'object'), 'all object-rooted');
 
@@ -122,15 +122,37 @@ async function tool(name, args = {}) {
     bad('save', e.message);
   }
 
-    try {
-      const tr = await tool('sephiria_travel', { action: 'spots', max: 5 });
-  check('travel spots', Array.isArray(tr.points) && typeof tr.total === 'number', `${tr.total} interactables on ${tr.floor}`);
+  try {
+    const tr = await tool('sephiria_travel', { action: 'spots', max: 5 });
+    check('travel spots', Array.isArray(tr.points) && typeof tr.total === 'number', `${tr.total} interactables on ${tr.floor}`);
+  } catch (e) {
+    bad('travel', e.message);
+  }
 
-  const m = await tool('sephiria_merchant', { action: 'merchants' });
-      check('merchants', Array.isArray(m.merchants), `${m.count} merchants`);
-    } catch (e) {
-      bad('merchants', e.message);
-    }
+  try {
+    const m = await tool('sephiria_merchant', { action: 'merchants' });
+    check('merchants', Array.isArray(m.merchants), `${m.count} merchants`);
+  } catch (e) {
+    bad('merchants', e.message);
+  }
+
+  try {
+    const mods = await tool('sephiria_mods', { action: 'list' });
+    check('mods list', Array.isArray(mods.mods) && mods.counts && mods.counts.total > 0,
+      `${mods.counts.total} mods (bepinex ${mods.counts.bepinex}, addons ${mods.counts.addons}, workshop ${mods.counts.workshop})`);
+
+    const patches = await tool('sephiria_mods', { action: 'patches', limit: 5 });
+    check('mods patches', typeof patches.totalPatchedMethods === 'number',
+      `${patches.totalPatchedMethods} patched methods, ${patches.matched} matched`);
+
+    const l10n = await tool('sephiria_mods', { action: 'l10n', key: 'Item_Name_1' });
+    check('mods l10n', Array.isArray(l10n.languages), `${(l10n.languages || []).length} languages`);
+
+    const ui = await tool('sephiria_ui', { action: 'list' });
+    check('ui stack', typeof ui.depth === 'number', `depth=${ui.depth}, open=${(ui.open || []).length}`);
+  } catch (e) {
+    bad('mods', e.message);
+  }
 
   try {
     const unknown = await rpc('tools/call', { name: 'sephiria_nope', arguments: {} });

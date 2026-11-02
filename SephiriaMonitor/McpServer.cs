@@ -156,7 +156,9 @@ namespace SephiriaMonitor
                 case "sephiria_brief": text = Brief(args); break;
                 case "sephiria_status": text = Status(args); break;
                 case "sephiria_merchant": text = Merchant(args); break;
-                case "sephiria_player": text = PlayerTool(args); break;
+                case "sephiria_player": text = PlayerTool(args); break;                case "sephiria_mods": text = Mods(args); break;
+                case "sephiria_ui": text = Ui(args); break;
+
                     case "sephiria_travel": text = Travel(args); break;
                 case "sephiria_inventory": text = Raw("/inventory"); break;
                 case "sephiria_world": text = World(args); break;
@@ -175,6 +177,57 @@ namespace SephiriaMonitor
                 ["content"] = new JArray { new JObject { ["type"] = "text", ["text"] = text ?? "" } },
                 ["isError"] = false
             };
+        }
+
+        private static string Mods(JObject args)
+        {
+            string action = (Str(args, "action") ?? "list").Trim().ToLowerInvariant();
+            switch (action)
+            {
+                case "patches":
+                    {
+                        var sb = new StringBuilder("/patches?limit=").Append(ClampInt(args, "limit", 20, 1, 200));
+                        string q = Str(args, "q");
+                        if (!string.IsNullOrEmpty(q)) sb.Append("&q=").Append(Uri.EscapeDataString(q));
+                        string owner = Str(args, "owner");
+                        if (!string.IsNullOrEmpty(owner)) sb.Append("&owner=").Append(Uri.EscapeDataString(owner));
+                        return Raw(sb.ToString());
+                    }
+                case "data":
+                    {
+                        var sb = new StringBuilder("/moddata?limit=").Append(ClampInt(args, "limit", 40, 1, 200));
+                        string kind = Str(args, "kind");
+                        if (!string.IsNullOrEmpty(kind)) sb.Append("&kind=").Append(Uri.EscapeDataString(kind));
+                        string q = Str(args, "q");
+                        if (!string.IsNullOrEmpty(q)) sb.Append("&q=").Append(Uri.EscapeDataString(q));
+                        if (args["min"] != null) sb.Append("&min=").Append(ClampInt(args, "min", 900000, 0, int.MaxValue));
+                        return Raw(sb.ToString());
+                    }
+                case "l10n":
+                    {
+                        var sb = new StringBuilder("/l10n?limit=").Append(ClampInt(args, "limit", 40, 1, 200));
+                        string key = Str(args, "key");
+                        if (!string.IsNullOrEmpty(key)) sb.Append("&key=").Append(Uri.EscapeDataString(key));
+                        string prefix = Str(args, "prefix");
+                        if (!string.IsNullOrEmpty(prefix)) sb.Append("&prefix=").Append(Uri.EscapeDataString(prefix));
+                        string lang = Str(args, "lang");
+                        if (!string.IsNullOrEmpty(lang)) sb.Append("&lang=").Append(Uri.EscapeDataString(lang));
+                        return Raw(sb.ToString());
+                    }
+                default:
+                    return Raw("/mods");
+            }
+        }
+
+        private static string Ui(JObject args)
+        {
+            string action = (Str(args, "action") ?? "list").Trim().ToLowerInvariant();
+            var sb = new StringBuilder("/ui?action=").Append(Uri.EscapeDataString(action));
+            string name = Str(args, "name");
+            if (!string.IsNullOrEmpty(name)) sb.Append("&name=").Append(Uri.EscapeDataString(name));
+            string type = Str(args, "type");
+            if (!string.IsNullOrEmpty(type)) sb.Append("&type=").Append(Uri.EscapeDataString(type));
+            return Raw(sb.ToString());
         }
 
         private static string Raw(string route)
@@ -728,6 +781,28 @@ namespace SephiriaMonitor
                          ["set"] = Prop("integer", "absolute value for money/level"),
                          ["name"] = Prop("string", "custom stat name, e.g. EVASION"),
                          ["value"] = Prop("integer", "absolute stat value")
+                     })),
+                Tool("sephiria_mods",
+                     "Mod testing probes. action=list: every loaded mod (BepInEx plugins, AddOns folder mods, Workshop packages) with state and dll path. patches: Harmony patches grouped by owner, filter q=method substring or owner=modId. data: rows registered by your mod (id >= min, default 900000) from the boot CSV export. l10n: resolve key= across all languages, or audit prefix= (e.g. ModItem_) and see which languages are missing.",
+                     Schema(new[] { "action", "q", "owner", "kind", "min", "key", "prefix", "lang", "limit" }, new JObject
+                     {
+                         ["action"] = Prop("string", "list|patches|data|l10n (default list)"),
+                         ["q"] = Prop("string", "patches: method substring; data: name substring"),
+                         ["owner"] = Prop("string", "patches: Harmony owner (modId) substring"),
+                         ["kind"] = Prop("string", "data: csv table(s), comma separated, e.g. item,weapon,status"),
+                         ["min"] = Prop("integer", "data: minimum id considered mod-added (default 900000)"),
+                         ["key"] = Prop("string", "l10n: exact localization key to resolve"),
+                         ["prefix"] = Prop("string", "l10n: key prefix to audit for missing translations"),
+                         ["lang"] = Prop("string", "l10n: language for resolved value (default current)"),
+                         ["limit"] = Prop("integer", "rows 1-200")
+                     })),
+                Tool("sephiria_ui",
+                     "UI probe: action=list returns the open control stack (depth/name/type/esc); widgets lists registered UI element names; open/close a panel by name or type substring (write ops, useful to check a mod's panel).",
+                     Schema(new[] { "action", "name", "type" }, new JObject
+                     {
+                         ["action"] = Prop("string", "list|widgets|open|close (default list)"),
+                         ["name"] = Prop("string", "gameObject or type substring, e.g. Inventory or UI_Charm"),
+                         ["type"] = Prop("string", "fallback type substring for open")
                      })),
                 Tool("sephiria_screenshot", "Fallback screenshot; prefer the JSON tools.", Schema())
             };
