@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   REPO, WORK, GAME, SAVES, health, get, getJson, tryJson, waitFor, sleep,
-  ensureRunning, waitWorld, arm, disarm, killGame, launchGame, waitBridge,
+  ensureRunning, waitWorld, arm, disarm, killGame, killGameAndWait, launchGame, waitBridge,
   snapshot, restore, backupSaves, restoreSaves, deployMod, undeployMod,
   readManifest, modDir, pick, compare, numDiff, artifactsDir, captureArtifacts,
   isGameRunning, copyDir, installPackage, removePackage,
@@ -152,19 +152,31 @@ async function runStep(step, ctx, index) {
         // Cold start and STAY on the title screen (no /arm), for panels that only exist there
         // (UI_SteamWorkshopPanel, UI_CloudSaveComparer).
         log('restarting game to the title screen');
-        killGame();
-        await sleep(4000);
+        killGameAndWait();
         launchGame();
-        await waitBridge(120000);
+        try {
+          await waitBridge(150000);
+        } catch (e) {
+          log(`bridge did not come up (${e.message}); relaunching once`);
+          killGameAndWait();
+          launchGame();
+          await waitBridge(150000);
+        }
         log('bridge up, staying at title');
         break;
       }
       case 'restart': {
         log('restarting game (watchdog step)');
-        killGame();
-        await sleep(4000);
+        killGameAndWait();
         launchGame();
-        await waitBridge(120000);
+        try {
+          await waitBridge(150000);
+        } catch (e) {
+          log(`bridge did not come up (${e.message}); relaunching once`);
+          killGameAndWait();
+          launchGame();
+          await waitBridge(150000);
+        }
         await waitWorld({ timeoutMs: 180000, log });
         results.steps.push({ index, kind, ok: true, ms: Date.now() - started });
         return;

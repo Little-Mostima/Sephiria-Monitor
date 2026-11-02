@@ -118,6 +118,23 @@ export async function waitBridge(timeoutMs = 150000) {
 
 const syncSleep = (ms) => { try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); } catch { /* ignore */ } };
 
+const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// Kill the game and wait until the process is really gone: launching a new copy while the
+// old one is still unloading produces "bridge never came up" failures (the new instance
+// loses the startup race and exits, or Unity refuses a second instance).
+export function killGameAndWait({ timeoutMs = 30000 } = {}) {
+  killGame();
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (!isGameRunning()) return true;
+    sleepMs(400);
+  }
+  try { spawnSync('taskkill', ['/IM', 'Sephiria.exe', '/F', '/T'], { stdio: 'ignore' }); } catch { /* ignore */ }
+  sleepMs(800);
+  return !isGameRunning();
+}
+
 export function killGame() {
   if (!isGameRunning()) return true;
   spawnSync('taskkill.exe', ['/IM', 'Sephiria.exe', '/F'], { stdio: 'ignore' });
