@@ -1,10 +1,14 @@
 # Sephiria Monitor
 
-**一个插件：把 Sephiria 的运行时状态变成 AI 能直接读的数据源；同时是一套 mod 制作、实机回归、工坊打包的工具链。**
+**Sephiria 的 mod 制作 + 检测工具链：AI 写 mod → 在真游戏里自动跑回归 → 打包上架。**
 
-装上它、把游戏跑起来，`http://127.0.0.1:47901` 就是一个本地只读数据源。任何 AI 客户端（Claude Desktop / Code、DSH、自写的 agent）都可以通过 **MCP**（16 个工具）或 **普通 GET**（56 条路由）读游戏状态：当前楼层、角色属性、护符连击、伤害统计、事件流、数据库 CSV、存档槽、mod 挂点目录。
+插件只是地基：游戏跑起来后它在本地开一个接口，让 AI 读得到 mod 需要的事实、驱动得动游戏进档和断言、拿得到结果。数据接口本身不是卖点——这里不罗列"能看哪些字段"，直接说它能把 mod 做成、测过、发出去：
 
-项目目标不是"再做一个内存修改器"，而是**给 mod 作者和 agent 提供一份可信的运行时事实**：数值从游戏对象里现读，不是从缓存快照里翻旧值。
+- **做**：`hooks.json` 79 条挂点（真实签名 + 行号 + 调用点），`tools/new-mod.mjs` 起骨架，`work/<mod>/` 隔离。
+- **测**：`tools/runner` 用 JSON 套件在真游戏里跑（起游戏 → 自动进档 → 断言 → 还原），`tools/preflight.mjs` 一条命令过门禁。
+- **发**：`tools/pack-workshop.mjs` 按工坊真实规则打包，`tools/review-status.mjs` 读审核状态。
+
+数值从游戏对象里现读，不从缓存快照翻旧值——这是 mod 断言可信的前提。
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
@@ -34,16 +38,39 @@
 ### 0.2 装完之后 AI 先调什么
 
 ```
-sephiria_health                     # 桥是否活着、版本
-sephiria_brief                      # 一次拿全：对局/玩家/战斗/连击/状态
-sephiria_hooks(q="ApplyDamage")     # 要找挂点时先查这里，别猜签名
+sephiria_health                  # 桥是否活着、版本
+sephiria_hooks(q="ApplyDamage")  # 写 mod 找挂点先查这里，别猜签名
+sephiria_mods(action="list")     # 自己的 mod 加载了没有
 ```
 
 手动安装（不交给 AI）见 §3。
 
 ---
 
-## 1. 仓库结构
+## 1. 做 mod、测 mod、发 mod
+
+`work/<mod>/` 隔离工作区 + 三条命令，把"写完能跑"变成"跑过才算"。
+
+```text
+work/<mod>/              本地工作区（不进 git：mod.json / metadata.json / src / dist / tests / workshop.json）
+  tests/*.suite.json     JSON 场景套件：真游戏、真存档、真断言
+tools/runner/            node run-suite.mjs <suite>  → 起游戏 → 自动进档 → 逐步断言 → 还原
+tools/preflight.mjs      node preflight.mjs work/<mod> → 静态 → 编译 → 打包校验 → 全部套件
+tools/preflight.mjs --all 同上，但遍历 work/ 下每个模组（发布前总闸）
+tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<modId>/ + zip
+tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
+tools/doctor.mjs          node doctor.mjs → 环境自检（游戏 / dotnet / 插件版本 / 桥 / 存档 / 模组通道）
+tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则校验产物（preflight 已内置）
+tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
+```
+
+隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。
+
+已跑通的产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿；打包产物按工坊形态装进 `WorkshopLocal\` 后 `workshop-install` 套件 `PASS 7/7`（日志出现 loaded、40 s 内产出备份）。
+
+---
+
+## 2. 仓库结构
 
 ```
 SephiriaMonitor/          # BepInEx 插件（C#，全部源码）
@@ -73,22 +100,6 @@ install.ps1               # 一键安装/升级
 - 插件启动即监听 `47901`，同时提供 GET 路由和 `POST /mcp`；
 - MCP 的 16 个工具在 C# 里实现，内部直接复用同一套路由函数；
 - Node 只在**客户端只会说 stdio** 时用得上（`tools/mcp-stdio.mjs`，20 行逻辑，无依赖）。
-
----
-
-## 2. 能监听到什么
-
-| 类别 | 内容 |
-| --- | --- |
-| 状态 | 场景、玩家 hp/mp/money/等级/坐标、单位数量、事件/日志计数、桥版本 |
-| 角色细节 | 64 项 `ECustomStat`（属性**实时**读取）、背包格子、石板与刻印、护符连击档位 |
-| 战斗 | 每次 `DamageInstance`（类型/元素/来源/暴击/结果）、击杀、死亡、掉落、拾金、经验；`/combat` 直接给命中率、失败分布、分来源聚合 |
-| 世界 | 当前楼层与 `FloorData`、楼层生成器内部结构（程序化房间拼图）、地图碰撞、全量单位 |
-| 运行时对象 | 任意类型按名枚举，或单个对象按 `depth` 反射展开（`/objects`、`/object`） |
-| 对局 | run 开始/结束边界、seed、raceId、stage 列表、每层进度 |
-| 数据 | 27 个数据库导出的 CSV（`out/session-*/db/*.csv`），按表/关键词查询 |
-| 存档 | 三个槽位的存在性、大小、修改时间、玩家名、死亡数（只读） |
-| mod 支持 | `hooks.json` 79 条挂点（签名+行号+真实调用点），`sephiria_hooks` 可按关键词/区域过滤 |
 
 ---
 
@@ -198,7 +209,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 ---
 
-## 5. 十六个工具
+## 5. MCP 工具
 
 | 工具 | 作用 |
 | --- | --- |
@@ -223,30 +234,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 
 ---
 
-## 6. 模组工坊：做、测、发
-
-这套插件同时是一个**模组制作与回归测试台**：
-
-```text
-work/<mod>/              本地工作区（不进 git：mod.json / metadata.json / src / dist / tests / workshop.json）
-  tests/*.suite.json     JSON 场景套件：真游戏、真存档、真断言
-tools/runner/            node run-suite.mjs <suite>  → 起游戏 → 自动进档 → 逐步断言 → 还原
-tools/preflight.mjs      node preflight.mjs work/<mod> → 静态 → 编译 → 打包校验 → 全部套件
-tools/preflight.mjs --all 同上，但遍历 work/ 下每个模组（发布前总闸）
-tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<modId>/ + zip
-tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
-tools/doctor.mjs          node doctor.mjs → 环境自检（游戏 / dotnet / 插件版本 / 桥 / 存档 / 模组通道）
-tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则校验产物（preflight 已内置）
-tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
-```
-
-隔离与安全：跑套件前给 `AddOns\` + `BepInEx\plugins\` 做快照（结束后还原），存档整目录备份（`SLOT*.sav`+`SLOT*TMP.sav`），只在标记文件存在时自动进档（2 小时过期、每进程一次）。
-
-第一个产物 **RunSaveGuard**（`work/runsave-guard`）：每 30 秒把 `SLOTxTMP.sav` 复制到 `Saved Games\Sephiria\runsave-guard\`，保留最近 12 份——游戏只在 TMP 里存当前运行状态，死亡/崩溃会直接删掉整局。实机套件 `PASS 6/6`，`preflight` 全绿；打包产物按工坊形态装进 `WorkshopLocal\\` 后 `workshop-install` 套件 `PASS 7/7`（日志出现 loaded、40 s 内产出备份）。
-
-`/engravings`（0.21.0）是配套的观测点：固定刻印存在 `GridInventory.fixedEngravingsOnServer` 里，不是场景对象，`/objects` 看不到——这类“非组件状态”必须由服务端读点暴露，否则很容易把“看不见”写成“丢了”。
-
-## 7. 版本记录
+## 6. 版本记录
 
 | 版本 | 变更 |
 | --- | --- |
@@ -266,7 +254,7 @@ tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / t
 
 ---
 
-## 8. 从源码编译
+## 7. 从源码编译
 
 - 目标框架 `netstandard2.1`，`LangVersion 9.0`，需要 .NET SDK 8 构建（运行时不够）。
 - 引用游戏的程序集（`Sephiria_Data\Managed`）与 BepInEx、0Harmony、`Newtonsoft.Json`，全部 `Private=false`（不复制到输出）。
@@ -279,7 +267,7 @@ dotnet build SephiriaMonitor -c Release
 
 ---
 
-## 9. 游戏内设置页（玩家手动调试）
+## 8. 游戏内设置页（玩家手动调试）
 
 插件会把调试开关注册进游戏自己的 **设置 → 游戏性 → 模组设置 → Sephiria Monitor**（`ModOptions` 是 `internal`，走全反射注册；值存在 `DeviceOptions.xml` 的 `ModOptions:com.surveillance.monitor:<key>`）：
 
@@ -292,7 +280,7 @@ NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（�
 
 查看当前值与所有 mod 页：`GET /modoptions`，或 MCP `sephiria_mods` 的 `action=options`。
 
-## 10. 排错
+## 9. 排错
 
 | 现象 | 原因 / 处理 |
 | --- | --- |
@@ -305,7 +293,7 @@ NPC 互殴伤害属于后台噪声控制，不放在玩家可见的设置里（�
 
 ---
 
-## 11. 边界
+## 10. 边界
 
 - 只读。写操作只有 `/enter`（调用游戏自己的 `UI_TitleLobby.NetworkHost()` 进档）和 `/arm`（写自动进档标记），都需要显式调用。
 - **自动进档默认完全关闭**：`[title] AutoEnter=false`；即使打开，也必须存在 2 小时有效期的标记文件，且每进程只生效一次，正常游玩不会被打断。
