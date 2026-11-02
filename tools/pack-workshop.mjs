@@ -52,7 +52,18 @@ if (fs.existsSync(locDir)) {
   modules.push({ type: 'localization', path: 'Localization' });
 }
 
-if (modules.length === 0) fail('package has no modules (need a dllFile or Localization/ folder)');
+// data modules: workshop.json "data": ["data"] (folder names, relative to the mod dir)
+for (const folder of (ws.data || [])) {
+  const src = path.join(modDir, folder);
+  if (!fs.existsSync(src) || !fs.statSync(src).isDirectory()) fail(`data module folder missing: ${folder}`);
+  fs.cpSync(src, path.join(pkg, folder), { recursive: true });
+  const mod = { type: 'data', path: folder };
+  const consumer = (ws.dataConsumers || {})[folder];
+  if (consumer) mod.consumer = consumer;
+  modules.push(mod);
+}
+
+if (modules.length === 0) fail('package has no modules (need a dllFile, Localization/ or data/ folder)');
 
 const preview = ws.preview || 'thumbnail.png';
 if (fs.existsSync(path.join(modDir, preview))) fs.copyFileSync(path.join(modDir, preview), path.join(pkg, preview));
@@ -73,7 +84,7 @@ const nested = {
     multiplayer: ws.multiplayer || { installation: 'everyone' },
     modules,
     libraries: [],
-    dependencies: [],
+    dependencies: (ws.dependencies || []).map((d) => ({ modId: d.modId, version: d.version, ...(d.workshopId ? { workshopId: d.workshopId } : {}) })),
   },
 };
 fs.writeFileSync(path.join(pkg, 'metadata.json'), JSON.stringify(nested, null, 2) + '\n');

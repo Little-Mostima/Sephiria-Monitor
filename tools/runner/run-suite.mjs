@@ -227,10 +227,16 @@ async function runStep(step, ctx, index) {
         return;
       }
       case 'log': {
-        const line = await get(`/logs?n=${Number((body && body.n) || 200)}`);
-        const parsed = safeJson(line);
         const needle = String((body && body.contains) || '');
-        const found = needle ? JSON.stringify(parsed).includes(needle) : true;
+        const until = Date.now() + Number((body && body.untilMs) || 0);
+        let found = false;
+        let parsed = null;
+        do {
+          const line = await get(`/logs?n=${Number((body && body.n) || 400)}`);
+          parsed = safeJson(line);
+          found = !needle || JSON.stringify(parsed).includes(needle);
+          if (!found && Date.now() < until) await sleep(1500);
+        } while (!found && Date.now() < until);
         if (!found) fail(`log does not contain "${needle}"`);
         results.steps.push({ index, kind, contains: needle, ok: true, ms: Date.now() - started });
         return;

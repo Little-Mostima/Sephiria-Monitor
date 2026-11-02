@@ -54,12 +54,13 @@ let contentOnly = false;
 {
   const problems = [];
   // workshop.json is optional: fixtures (control suites, guards) have none and legitimately skip packaging.
-  for (const f of ['metadata.json', 'mod.json']) {
-    if (!exists(path.join(modDir, f))) problems.push('missing ' + f);
-  }
   const csprojs = exists(path.join(modDir, 'src')) ? fs.readdirSync(path.join(modDir, 'src')).filter((n) => n.endsWith('.csproj')) : [];
   // A package with no code (translations / data only) has no csproj and no dllFile: that is legal.
   contentOnly = csprojs.length === 0;
+  // mod.json only describes an AddOns deploy; a content-only package has nothing to deploy there.
+  for (const f of contentOnly ? ['metadata.json'] : ['metadata.json', 'mod.json']) {
+    if (!exists(path.join(modDir, f))) problems.push('missing ' + f);
+  }
   if (!contentOnly && csprojs.length !== 1) problems.push(`expected exactly one .csproj in src/, found ${csprojs.length}`);
   let meta = null;
   try { meta = readJson(path.join(modDir, 'metadata.json')); } catch { problems.push('metadata.json is not valid JSON'); }
