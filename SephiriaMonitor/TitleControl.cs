@@ -18,8 +18,12 @@ namespace SephiriaMonitor
         private static readonly string[] SlotNames = { "SLOT1", "SLOT2", "SLOT3" };
 
         private static string pendingSlot;
+        private static string pendingName;
+        private static bool nameSubmitted;
         private static float pendingStartedAt;
         private static float lastAttemptAt;
+        private static float lastNameAt = -10f;
+        private static float nextPromptCheckAt;
         private static int pendingAttempts;
         private static string pendingState = "idle";
         private static string pendingDetail = "";
@@ -45,6 +49,8 @@ namespace SephiriaMonitor
         public static void OnEnteredTitle()
         {
             pendingSlot = null;
+            pendingName = null;
+            nameSubmitted = false;
             pendingState = "idle";
             pendingDetail = "";
             pendingAttempts = 0;
@@ -199,8 +205,12 @@ namespace SephiriaMonitor
 
         // ---------- write (explicit, only via /enter) ----------
 
-        /// <summary>Start loading a save slot exactly like clicking its card: set SelectedProfile, then NetworkHost().</summary>
-        public static Dictionary<string, object> Enter(string slotArg, bool allowCreate)
+        /// <summary>
+        /// Start loading a save slot exactly like clicking its card: set SelectedProfile, then NetworkHost().
+        /// A brand-new save makes the game open the "enter your name" prompt; when <paramref name="autoName"/>
+        /// is passed (or create=1 without a name), Tick answers that prompt so no human is needed.
+        /// </summary>
+        public static Dictionary<string, object> Enter(string slotArg, bool allowCreate, string autoName = null)
         {
             if (!IsTitle)
             {
@@ -230,6 +240,10 @@ namespace SephiriaMonitor
             Events.Note("title", "enter_request|" + slot);
 
             pendingSlot = slot;
+            string wantedName = string.IsNullOrWhiteSpace(autoName) ? null : autoName.Trim();
+            if (wantedName == null && !exists && allowCreate) wantedName = "Tester";
+            pendingName = wantedName;
+            nameSubmitted = false;
             pendingState = "running";
             pendingDetail = "";
             pendingAttempts = 0;
@@ -241,6 +255,7 @@ namespace SephiriaMonitor
             r["ok"] = true;
             r["requested"] = slot;
             r["mode"] = exists ? "load" : "create";
+            if (pendingName != null) r["name"] = pendingName;
             r["pending"] = Pending();
             return r;
         }
@@ -278,6 +293,13 @@ namespace SephiriaMonitor
             if (lobby == null)
             {
                 pendingDetail = "no_title_lobby";
+                return;
+            }
+            if (NamePromptOpen())
+            {
+                // NetworkHost() is already waiting on the name prompt; calling it again would only
+                // re-open the dialog and wipe whatever was typed.
+                pendingDetail = "prompt_open";
                 return;
             }
             try
@@ -381,18 +403,35 @@ namespace SephiriaMonitor
                     MonitorPlugin.LogInfo("TITLE|enter|ok|" + pendingSlot + "|attempts=" + pendingAttempts + "|scene=" + scene + "|enterMs=" + ((Time.realtimeSinceStartup - pendingStartedAt) * 1000f).ToString("0"));
                     Events.Note("title", "enter_ok|" + pendingSlot + "|" + scene);
                     pendingSlot = null;
+                    pendingName = null;
                 }
                 else if (t - pendingStartedAt > 60f)
                 {
                     pendingState = "timeout";
-                    pendingDetail = "timeout|scene=" + scene + "|attempts=" + pendingAttempts;
+                    pendingDetail = "timeout|scene=" + scene + "|attempts=" + pendingAttempts + "|name=" + (pendingName ?? "-");
                     MonitorPlugin.LogError("TITLE|enter|timeout|" + pendingDetail);
                     Events.Note("title", "enter_timeout|" + pendingDetail);
                     pendingSlot = null;
+                    pendingName = null;
                 }
-                else if (t - lastAttemptAt >= 0.3f)
+                else if (t >= nextPromptCheckAt)
                 {
-                    Attempt("retry");
+                    nextPromptCheckAt = t + 0.2f;
+                    if (nameSubmitted)
+                    {
+                        // The name is in; the game saves and starts the host by itself. Keep clicking
+                        // "skip prologue" if that second dialog shows up, but never call NetworkHost again.
+                        if (TrySkipPrologue()) pendingDetail = "auto_name|" + pendingName + "|skip_prologue";
+                    }
+                    else if (pendingName != null && TryAnswerNamePrompt(pendingName))
+                    {
+                        nameSubmitted = true;
+                        pendingDetail = "auto_name|" + pendingName;
+                    }
+                    else if (!NamePromptOpen() && t - lastAttemptAt >= 0.3f)
+                    {
+                        Attempt("retry");
+                    }
                 }
             }
 
@@ -576,6 +615,102 @@ namespace SephiriaMonitor
                 return -1;
             }
             return (n >= 1 && n <= SlotNames.Length) ? n - 1 : -1;
+        }
+
+        // ---------- name prompt ----------
+
+        /// <summary>
+        /// A brand-new save makes UI_TitleLobby.CheckAndStart open UI_MessageBox_InputYesNo and wait for a
+        /// human. The bridge answers it instead: the button handler reads the field's rendered text, so both
+        /// the TMP text and the field value are written before the click.
+        /// </summary>
+        private static UI_MessageBox_InputYesNo FindNamePrompt()
+        {
+            UI_MessageBox_InputYesNo box = FindScene<UI_MessageBox_InputYesNo>(false);
+            if (box == null || !box.gameObject.activeInHierarchy || box.input == null || box.yesButton == null)
+            {
+                return null;
+            }
+            return box;
+        }
+
+        private static bool NamePromptOpen()
+        {
+            return FindNamePrompt() != null;
+        }
+
+        private static bool TryAnswerNamePrompt(string name)
+        {
+            float t = Time.realtimeSinceStartup;
+            if (t - lastNameAt < 0.5f)
+            {
+                return false;
+            }
+            UI_MessageBox_InputYesNo box = FindNamePrompt();
+            if (box == null)
+            {
+                return false;
+            }
+            lastNameAt = t;
+            try
+            {
+                string wanted = (name ?? "").Trim();
+                if (box.input.textComponent != null)
+                {
+                    box.input.textComponent.text = wanted;
+                }
+                box.input.text = wanted;
+                box.yesButton.onClick.Invoke();
+                MonitorPlugin.LogInfo("TITLE|enter|auto_name|" + pendingSlot + "|name=" + wanted + "|attempts=" + pendingAttempts);
+                Events.Note("title", "auto_name|" + pendingSlot + "|" + wanted);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                pendingDetail = "auto_name:" + ex.GetType().Name + ":" + ex.Message;
+                MonitorPlugin.LogError("TITLE|enter|" + pendingDetail);
+                return false;
+            }
+        }
+
+        /// <summary>Right after the name, a save with a cleared prologue elsewhere in the slots triggers the
+        /// "skip prologue?" YesNo; test profiles always skip it (PrepareNew writes the same switch).</summary>
+        private static bool TrySkipPrologue()
+        {
+            float t = Time.realtimeSinceStartup;
+            if (t - lastNameAt < 0.5f)
+            {
+                return false;
+            }
+            UI_MessageBox_YesNo box = FindScene<UI_MessageBox_YesNo>(false);
+            if (box == null || !box.gameObject.activeInHierarchy || box.text == null || box.yesButton == null)
+            {
+                return false;
+            }
+            string wanted = null;
+            try
+            {
+                UI_TitleLobby lobby = FindScene<UI_TitleLobby>();
+                if (lobby != null) wanted = lobby.skipPrologue.ToString();
+            }
+            catch { }
+            if (string.IsNullOrEmpty(wanted) || box.text.text == null || box.text.text.Trim() != wanted.Trim())
+            {
+                return false;
+            }
+            lastNameAt = t;
+            try
+            {
+                box.yesButton.onClick.Invoke();
+                MonitorPlugin.LogInfo("TITLE|enter|skip_prologue|" + pendingSlot);
+                Events.Note("title", "skip_prologue|" + pendingSlot);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MonitorPlugin.LogError("TITLE|enter|skip_prologue|failed|" + ex.Message);
+                return false;
+            }
         }
 
         private static T FindScene<T>() where T : UnityEngine.Object

@@ -228,16 +228,27 @@ async function runStep(step, ctx, index) {
       }
       case 'isolateAddons': {
         // Move every AddOns folder except the named one aside, so a suite that measures absolute
-        // player stats sees only its own pack. The end-of-suite isolation restore puts them back.
+        // player stats sees only its own pack. The end-of-suite snapshot restore puts them back.
+        // renameSync is only same-drive: fall back to copy+remove when AddOns and work/ are on
+        // different volumes (GAME on C:, repo on D:).
         const keep = String(body);
         const aside = path.join(STATE, `addons-aside-${Date.now()}`);
         fs.mkdirSync(aside, { recursive: true });
         const moved = [];
         for (const name of fs.existsSync(ADDONS) ? fs.readdirSync(ADDONS) : []) {
           if (name.toLowerCase() === keep.toLowerCase()) continue;
-          fs.renameSync(path.join(ADDONS, name), path.join(aside, name));
+          const src = path.join(ADDONS, name);
+          const dst = path.join(aside, name);
+          try {
+            fs.renameSync(src, dst);
+          } catch (ex) {
+            if (ex.code !== 'EXDEV' && ex.code !== 'EPERM' && ex.code !== 'EACCES' && ex.code !== 'EBUSY') throw ex;
+            fs.cpSync(src, dst, { recursive: true });
+            fs.rmSync(src, { recursive: true, force: true });
+          }
           moved.push(name);
         }
+        globalThis.__isolatedAside = aside;
         log(`isolateAddons: kept ${keep}, moved aside ${moved.length} (${moved.join(', ') || 'none'})`);
         results.steps.push({ index, kind, keep, moved, ok: true, ms: Date.now() - started });
         return;
@@ -277,14 +288,20 @@ async function runStep(step, ctx, index) {
       case 'enter': {
         const slot = String(body && body.slot != null ? body.slot : body || '1');
         const create = !!(body && body.create);
-        const res = await getJson(`/enter?slot=${encodeURIComponent(slot)}` + (create ? '&create=1' : ''), 30000);
-        results.steps.push({ index, kind, ok: true, slot, create, detail: res, ms: Date.now() - started });
+        const name = body && body.name ? String(body.name) : '';
+        const res = await getJson(
+          `/enter?slot=${encodeURIComponent(slot)}` + (create ? '&create=1' : '') + (name ? `&name=${encodeURIComponent(name)}` : ''),
+          30000,
+        );
+        results.steps.push({ index, kind, ok: true, slot, create, name: name || undefined, detail: res, ms: Date.now() - started });
         return;
       }
       case 'newWorld': {
         // Fresh save slot without touching the title-screen UI: /prepnew writes a profile
         // (name + prologue cleared) and /enter loads it. Needed whenever a suite measures
         // absolute player stats: a long-lived save still carries relics from earlier packs.
+        // If /prepnew is unavailable the bridge falls back to answering the game's own
+        // "enter your name" prompt (create=1&name=...) - that path is slower but equivalent.
         const slot = Number(body && body.slot != null ? body.slot : 2);
         const name = String((body && body.name) || 'Tester');
         killGameAndWait();
@@ -297,11 +314,24 @@ async function runStep(step, ctx, index) {
           await sleep(1000);
         }
         if (!title) fail('newWorld: title screen did not appear');
-        const prep = await getJson(`/prepnew?slot=SLOT${slot}&name=${encodeURIComponent(name)}&fresh=1`, 60000);
-        log(`prepnew: ${JSON.stringify(prep).slice(0, 200)}`);
-        if (!prep || prep.ok !== true) fail(`newWorld: prepnew failed: ${JSON.stringify(prep).slice(0, 200)}`);
-        const res = await getJson(`/enter?slot=SLOT${slot}`, 60000);
-        log(`enter: ${JSON.stringify(res).slice(0, 160)}`);
+        let via = 'prepnew';
+        let prep = null;
+        try {
+          prep = await getJson(`/prepnew?slot=SLOT${slot}&name=${encodeURIComponent(name)}&fresh=1`, 60000);
+          log(`prepnew: ${JSON.stringify(prep).slice(0, 200)}`);
+        } catch (ex) {
+          log(`prepnew error: ${ex.message}`);
+        }
+        if (!prep || prep.ok !== true) {
+          via = 'create';
+          log(`newWorld: prepnew unavailable, creating the profile through the game instead`);
+          const res = await getJson(`/enter?slot=SLOT${slot}&create=1&name=${encodeURIComponent(name)}`, 60000);
+          log(`enter(create): ${JSON.stringify(res).slice(0, 200)}`);
+          if (!res || res.ok === false) fail(`newWorld: create+enter failed: ${JSON.stringify(res).slice(0, 200)}`);
+        } else {
+          const res = await getJson(`/enter?slot=SLOT${slot}`, 60000);
+          log(`enter: ${JSON.stringify(res).slice(0, 160)}`);
+        }
         let world = false;
         for (let i = 0; i < 180; i++) {
           const st = await tryJson('/state');
@@ -309,7 +339,13 @@ async function runStep(step, ctx, index) {
           await sleep(1000);
         }
         if (!world) fail('newWorld: MainWorld did not load');
-        results.steps.push({ index, kind, slot, ok: true, ms: Date.now() - started });
+        // Absolute check: the slot we are standing on must be the clean profile we asked for.
+        await sleep(1200);
+        const saves = await tryJson('/saves');
+        const row = saves && Array.isArray(saves.slots) ? saves.slots.find((s) => s && Number(s.slot) === slot) : null;
+        if (!row || !row.exists) fail(`newWorld: slot ${slot} missing from /saves after entering`);
+        if (row.playerName !== name) fail(`newWorld: slot ${slot} playerName=${JSON.stringify(row.playerName)} != ${JSON.stringify(name)}`);
+        results.steps.push({ index, kind, slot, name, via, deathCount: row.deathCount, ok: true, ms: Date.now() - started });
         return;
       }
       case 'files': {
@@ -467,6 +503,10 @@ async function main() {
       restoreSaves('pre');
       const v = verifySaves('pre', opts.slot ? [`SLOT${opts.slot}.sav`] : []);
       cleanupTestSlot(opts.slot);
+      if (globalThis.__isolatedAside) {
+        fs.rmSync(globalThis.__isolatedAside, { recursive: true, force: true });
+        globalThis.__isolatedAside = null;
+      }
       results.isolation = { snapshot: snap, saveFiles: v.files, restored: v.ok, mismatched: v.bad };
       if (v.ok) log(`isolation restored (AddOns/plugins + ${v.files} save file(s), sha256 verified)`);
       else {
@@ -502,6 +542,10 @@ main().catch(async (ex) => {
       restoreSaves('pre');
       const v = verifySaves('pre', opts.slot ? [`SLOT${opts.slot}.sav`] : []);
       cleanupTestSlot(opts.slot);
+      if (globalThis.__isolatedAside) {
+        fs.rmSync(globalThis.__isolatedAside, { recursive: true, force: true });
+        globalThis.__isolatedAside = null;
+      }
       results.isolation = { snapshot: iso.snap, saveFiles: v.files, restored: v.ok, mismatched: v.bad, recovered: true };
       console.error(v.ok ? 'isolation restored after failure' : `ISOLATION BROKEN after failure: ${v.bad.join(', ')}`);
     } catch (e2) { console.error(`isolation restore failed: ${e2.message}`); }

@@ -384,10 +384,19 @@ export function verifySaves(tag, ignore = []) {
 export function restoreSaves(tag) {
   const dir = path.join(STATE, `saves-${tag}`);
   if (!fs.existsSync(dir)) throw new Error(`no save backup named ${tag}`);
-  for (const f of fs.readdirSync(dir)) {
-    if (/\.sav$/i.test(f)) fs.copyFileSync(path.join(dir, f), path.join(SAVES, f));
+  const keep = new Set(fs.readdirSync(dir).filter((f) => /\.sav$/i.test(f)));
+  // Delete profiles created while the suite ran (e.g. a newWorld slot): restoring only the
+  // backed-up files would leave those behind and the next run would start from a dirty save.
+  const removed = [];
+  if (fs.existsSync(SAVES)) {
+    for (const f of fs.readdirSync(SAVES)) {
+      if (!/\.sav$/i.test(f) || keep.has(f)) continue;
+      fs.rmSync(path.join(SAVES, f), { force: true });
+      removed.push(f);
+    }
   }
-  return dir;
+  for (const f of keep) fs.copyFileSync(path.join(dir, f), path.join(SAVES, f));
+  return { dir, restored: [...keep], removed };
 }
 
 // ---------- mods ----------

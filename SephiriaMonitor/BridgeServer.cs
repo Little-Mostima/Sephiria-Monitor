@@ -538,7 +538,7 @@ namespace SephiriaMonitor
                     case "/saves":
                         return Json.Write(TitleControl.Slots());
                     case "/enter":
-                        return Json.Write(TitleControl.Enter(Query(query, "slot", ""), Query(query, "create", "0") == "1"));
+                        return Json.Write(TitleControl.Enter(Query(query, "slot", ""), Query(query, "create", "0") == "1", Query(query, "name", "")));
                     case "/prepnew":
                         return Json.Write(TitleControl.PrepareNew(Query(query, "slot", ""), Query(query, "name", "Tester"), Query(query, "fresh", "0") == "1"));
                     case "/enterstatus":
