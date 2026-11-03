@@ -486,6 +486,8 @@ namespace SephiriaMonitor
                         return MerchantOps.Merchants();
                     case "/floors":
                         return MerchantOps.Floors();
+                    case "/floorgens":
+                        return FloorGenOps.Generators(Query(query, "q", ""), Query(query, "dir", ""), Int(query, "limit", 200));
                     case "/sample":
                         return MainThreadPump.Run(delegate
                         {
