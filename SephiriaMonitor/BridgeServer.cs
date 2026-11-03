@@ -434,6 +434,12 @@ namespace SephiriaMonitor
                     return UnitOps.Dump(Query(query, "q", ""), Int(query, "limit", 500));
                 case "/weapons":
                     return WeaponDump.Dump(Query(query, "q", ""), Int(query, "limit", 400));
+                case "/equip":
+                    return WeaponOps.Equip(Int(query, "weapon", 0));
+                case "/attack":
+                    return WeaponOps.Attack(Num(query, "dx", 1f), Num(query, "dy", 0f), Int(query, "dash", 0), Query(query, "up", "1") == "1");
+                case "/attackup":
+                    return WeaponOps.AttackUp();
                 case "/weaponmap":
                         return WeaponOps.Map(Query(query, "q", ""), Int(query, "limit", 200));
                     case "/relics":

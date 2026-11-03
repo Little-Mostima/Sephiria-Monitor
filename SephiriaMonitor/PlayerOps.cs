@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
@@ -84,7 +84,7 @@ namespace SephiriaMonitor
             }
         }
 
-        private static PlayerAvatar Player()
+        internal static PlayerAvatar Player()
         {
             List<UnityEngine.Object> players = StateApi.Instances(typeof(PlayerAvatar));
             return players.Count > 0 ? players[0] as PlayerAvatar : null;
