@@ -53,7 +53,7 @@ if (deploy) {
   const folder = entry.folder || meta.modName.replace(/[^A-Za-z0-9]/g, '');
   deployed = path.join(ADDONS, folder);
   fs.mkdirSync(deployed, { recursive: true });
-  for (const f of fs.readdirSync(dist)) fs.copyFileSync(path.join(dist, f), path.join(deployed, f));
+  for (const f of fs.readdirSync(dist)) fs.cpSync(path.join(dist, f), path.join(deployed, f), { recursive: true });
     // AddOns mods have no Localization module, so the texts travel with the dll (OnLocalizationReady reads them).
     for (const extra of ['Localization', 'data', 'costume']) {
       const from = path.join(modDir, extra);
