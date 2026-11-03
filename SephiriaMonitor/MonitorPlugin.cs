@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using BepInEx;
@@ -49,6 +49,7 @@ namespace SephiriaMonitor
                     LogInfo("BOOT|game_hooks|disabled");
                 }
                 MonitorPatches.Apply();
+                HookFreq.Apply();
                 PlayerOps.Apply();
                 BridgeServer.Start();
                 LogInfo("BOOT|ready|bridge=" + BridgeServer.Port + "|session=" + Session.Root);
