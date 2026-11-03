@@ -301,6 +301,65 @@ namespace SephiriaMonitor
             return b ? "1" : "0";
         }
 
+        /// <summary>
+        /// Create or fill a profile without the game's name prompt: make the save when missing, write
+        /// PlayerName + the prologue-clear switch, save, so the following Enter() takes the plain load path.
+        /// </summary>
+        public static Dictionary<string, object> PrepareNew(string slotArg, string playerName, bool fresh = false)
+        {
+            Dictionary<string, object> r = Json.Obj();
+            string slot = string.IsNullOrEmpty(slotArg) ? SaveManager.defaultSlotName : slotArg;
+            if (string.IsNullOrEmpty(playerName)) playerName = "Tester";
+            try
+            {
+                if (!IsTitle)
+                {
+                    r["ok"] = false;
+                    r["error"] = "not on title screen";
+                    r["scene"] = SceneTracker.Current;
+                    return r;
+                }
+                bool existed = false;
+                try { existed = SaveData.Exists(slot); } catch { }
+                if (fresh || !existed)
+                {
+                    // fresh=1 overwrites whatever the slot held: suites that measure absolute
+                    // player stats need a world with no relics from earlier runs.
+                    SaveManager.CreateNew(slot);
+                    SaveManager.CreateNewTMP(slot);
+                    existed = false;
+                }
+                if (!SaveManager.Load(slot))
+                {
+                    r["ok"] = false;
+                    r["error"] = "SaveManager.Load failed";
+                    r["slot"] = slot;
+                    return r;
+                }
+                // Save() copies CurrentRun too; at the title screen it is null until LoadTMP runs.
+                if (!SaveManager.LoadTMP(slot))
+                {
+                    SaveManager.CreateNewTMP(slot);
+                    SaveManager.LoadTMP(slot);
+                }
+                SaveManager.Current.SetString("PlayerName", playerName);
+                SaveManager.Current.SetBool("DestinySwitch_PrologueClear", true);
+                SaveManager.Save(saveCurrent: true, saveCurrentRun: false);
+                r["ok"] = true;
+                r["slot"] = slot;
+                r["existed"] = existed;
+                r["name"] = playerName;
+                MonitorPlugin.LogInfo("TITLE|prepnew|" + slot + "|existed=" + existed);
+            }
+            catch (System.Exception ex)
+            {
+                r["ok"] = false;
+                r["error"] = ex.GetType().Name + ":" + ex.Message;
+                MonitorPlugin.LogError("TITLE|prepnew|failed|" + ex);
+            }
+            return r;
+        }
+
         // ---------- tick ----------
 
         /// <summary>Driven by MonitorHost.Update: retries the enter request and keeps the title log meaningful.</summary>

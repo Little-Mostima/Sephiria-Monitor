@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  REPO, WORK, GAME, SAVES, health, get, getJson, tryJson, waitFor, sleep,
+  REPO, WORK, GAME, SAVES, ADDONS, STATE, health, get, getJson, tryJson, waitFor, sleep,
   ensureRunning, waitWorld, arm, disarm, killGame, killGameAndWait, launchGame, waitBridge,
   snapshot, restore, backupSaves, restoreSaves, verifySaves, hashFiles, deployMod, undeployMod,
   prepareTestSlot, cleanupTestSlot,
@@ -226,6 +226,22 @@ async function runStep(step, ctx, index) {
         results.steps.push({ index, kind, name: String(body), ok: true, ms: Date.now() - started });
         return;
       }
+      case 'isolateAddons': {
+        // Move every AddOns folder except the named one aside, so a suite that measures absolute
+        // player stats sees only its own pack. The end-of-suite isolation restore puts them back.
+        const keep = String(body);
+        const aside = path.join(STATE, `addons-aside-${Date.now()}`);
+        fs.mkdirSync(aside, { recursive: true });
+        const moved = [];
+        for (const name of fs.existsSync(ADDONS) ? fs.readdirSync(ADDONS) : []) {
+          if (name.toLowerCase() === keep.toLowerCase()) continue;
+          fs.renameSync(path.join(ADDONS, name), path.join(aside, name));
+          moved.push(name);
+        }
+        log(`isolateAddons: kept ${keep}, moved aside ${moved.length} (${moved.join(', ') || 'none'})`);
+        results.steps.push({ index, kind, keep, moved, ok: true, ms: Date.now() - started });
+        return;
+      }
       case 'undeploy': {
         undeployMod(String(body), log);
         results.steps.push({ index, kind, name: String(body), ok: true, ms: Date.now() - started });
@@ -266,17 +282,11 @@ async function runStep(step, ctx, index) {
         return;
       }
       case 'newWorld': {
-        // Fresh save slot: move an existing SLOTn.sav aside, relaunch, then /enter?create=1.
-        // Needed whenever a suite measures absolute player stats: a long-lived save still carries
-        // relics granted by earlier packs, so absolute values would be polluted.
+        // Fresh save slot without touching the title-screen UI: /prepnew writes a profile
+        // (name + prologue cleared) and /enter loads it. Needed whenever a suite measures
+        // absolute player stats: a long-lived save still carries relics from earlier packs.
         const slot = Number(body && body.slot != null ? body.slot : 2);
-        const sav = path.join(SAVES, `SLOT${slot}.sav`);
-        if (fs.existsSync(sav)) {
-          const bak = path.join(WORK, '_state', `slot${slot}-preexisting-${Date.now()}.sav`);
-          fs.mkdirSync(path.dirname(bak), { recursive: true });
-          fs.renameSync(sav, bak);
-          log(`moved pre-existing SLOT${slot}.sav -> ${bak}`);
-        }
+        const name = String((body && body.name) || 'Tester');
         killGameAndWait();
         launchGame();
         await waitBridge(150000);
@@ -287,8 +297,11 @@ async function runStep(step, ctx, index) {
           await sleep(1000);
         }
         if (!title) fail('newWorld: title screen did not appear');
-        const res = await getJson(`/enter?slot=${slot}&create=1`, 60000);
-        log(`enter create: ${JSON.stringify(res).slice(0, 160)}`);
+        const prep = await getJson(`/prepnew?slot=SLOT${slot}&name=${encodeURIComponent(name)}&fresh=1`, 60000);
+        log(`prepnew: ${JSON.stringify(prep).slice(0, 200)}`);
+        if (!prep || prep.ok !== true) fail(`newWorld: prepnew failed: ${JSON.stringify(prep).slice(0, 200)}`);
+        const res = await getJson(`/enter?slot=SLOT${slot}`, 60000);
+        log(`enter: ${JSON.stringify(res).slice(0, 160)}`);
         let world = false;
         for (let i = 0; i < 180; i++) {
           const st = await tryJson('/state');
