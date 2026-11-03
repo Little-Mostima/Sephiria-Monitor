@@ -23,7 +23,7 @@ const asJson = args.includes('--json');
 const reuse = args.includes('--reuse');
 const suiteRetries = Number((args.find((a) => a.startsWith('--suite-retries=')) || '--suite-retries=1').split('=')[1]) || 0;
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1'), '..');
-const modDir = target ? path.resolve(target) : null;
+const modDir = target ? (path.isAbsolute(target) ? target : (fs.existsSync(path.resolve(target)) ? path.resolve(target) : path.join(REPO, 'work', target))) : null;
 const stages = [];
 
 // --all: gate every mod under work/ (one directory per mod, metadata.json present).
