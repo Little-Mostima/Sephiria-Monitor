@@ -428,7 +428,9 @@ namespace SephiriaMonitor
                             return ModOptionsBridge.Set(Query(query, "mod", ModOptionsBridge.ModId), Query(query, "set", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
                         }
                         return ModOptionsBridge.Describe().ToString(Newtonsoft.Json.Formatting.None);
-                    case "/weapons":
+                    case "/units":
+                    return UnitOps.Dump(Query(query, "q", ""), Int(query, "limit", 500));
+                case "/weapons":
                     return WeaponDump.Dump(Query(query, "q", ""), Int(query, "limit", 400));
                 case "/weaponmap":
                         return WeaponOps.Map(Query(query, "q", ""), Int(query, "limit", 200));
