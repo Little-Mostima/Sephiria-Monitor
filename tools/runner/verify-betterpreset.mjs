@@ -44,6 +44,11 @@ const activeSlots = async () => {
   const root = (r?.hits || []).find((h) => h.name === 'PresetGroup Scroll View');
   return (root?.children || []).filter((c) => c.name === 'SlotOrigin(Clone)' && String(c.active).toLowerCase() === 'true').length;
 };
+const allSlots = async () => {
+  const r = await ui('active', 'PresetGroup');
+  const root = (r?.hits || []).find((h) => h.name === 'PresetGroup Scroll View');
+  return (root?.children || []).filter((c) => c.name === 'SlotOrigin(Clone)').length;
+};
 const badgeNames = async () => ((await ui('active', 'FavoriteBadge'))?.hits || []).map((h) => h.name);
 
 try {
@@ -60,37 +65,34 @@ try {
   if (health?.scene === 'Title') {
     evidence.enter = await tryJson('/enter?slot=SLOT2', 60000);
     await waitFor(async () => (await tryJson('/health'))?.scene === 'MainWorld', { timeoutMs: 90000, label: 'MainWorld' });
-    await sleep(1500);
+    await sleep(8000); // let the loading screen finish, otherwise the panel opens but never renders
   }
 
   const isOpen = (r) => !!(r?.hits || []).some((h) => h.opened);
   let opened = null;
-  for (let i = 0; i < 40 && !isOpen(opened); i++) {
+  for (let i = 0; i < 30; i++) {
     opened = await ui('open', 'PresetPanel');
-    if (!isOpen(opened)) await sleep(1000);
+    if (isOpen(opened) && (await countText())) break;
+    await sleep(1500);
   }
-  note('panel opens', isOpen(opened), { matched: opened?.matched, hits: opened?.hits });
+  note('panel opens and renders', isOpen(opened) && !!(await countText()), { matched: opened?.matched, hits: opened?.hits });
   await sleep(1200);
   await shot('01-panel');
 
   // Normalise the panel state left over from earlier runs: no search text, favourites-only off.
   await ui('settext', 'BetterPresetSearch', '');
   await sleep(600);
-  let total = await activeSlots();
-  if (total === 0) {
-    await sleep(1500);
-    total = await activeSlots();
-  }
-  const countBefore = await waitCountText();
-  if (countBefore && total > 0 && Number(countBefore.match(/预设 (\d+)\//)?.[1]) !== total) {
-    // favourites-only is on from a previous run
+  let total = await allSlots();
+  let visible = await activeSlots();
+  if (visible < total) {
     await ui('click', 'BetterPresetFavoriteFilter');
     await sleep(900);
-    total = await activeSlots();
+    visible = await activeSlots();
   }
-  note('count text matches the slot list', /^预设 \d+\/100$/.test(countBefore || '') && Number(countBefore.match(/预设 (\d+)\//)[1]) === total,
-    { countBefore, total });
-  evidence.baseline = { countBefore, total };
+  const countBefore = await waitCountText(20000);
+  note('count text matches the slot list', /^预设 \d+\/100$/.test(countBefore || '') && Number(countBefore.match(/预设 (\d+)\//)[1]) === visible,
+    { countBefore, total, visible });
+  evidence.baseline = { countBefore, total, visible };
 
   for (let i = 0; i < addCount; i++) {
     await ui('click', 'AddSlot');
@@ -100,8 +102,8 @@ try {
   const countAfter = await waitCountText();
   const afterSlots = await activeSlots();
   const n = Number((countAfter || '').match(/预设 (\d+)\/100/)?.[1] || 0);
-  note('slot limit past vanilla 15', n > 15 && afterSlots > 15 && afterSlots >= total + addCount - 1,
-    { countBefore, countAfter, total, afterSlots });
+  note('slot limit past vanilla 15', n > 15 && afterSlots > 15 && afterSlots >= visible + addCount - 1,
+    { countBefore, countAfter, visible, afterSlots });
   await shot('02-slots-created');
 
   await ui('settext', 'BetterPresetSearch', String(n));
