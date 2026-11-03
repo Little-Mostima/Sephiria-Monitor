@@ -447,7 +447,7 @@ namespace SephiriaMonitor
                     case "/l10n":
                         return ModOps.L10n(Query(query, "key", ""), Query(query, "prefix", ""), Query(query, "lang", ""), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
                     case "/ui":
-                        return ModOps.Ui(Query(query, "action", "list"), Query(query, "name", ""), Query(query, "type", "")).ToString(Newtonsoft.Json.Formatting.None);
+                        return ModOps.Ui(Query(query, "action", "list"), Query(query, "name", ""), Query(query, "type", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
                     case "/boss":
                         return PlayerOps.Boss();
                     case "/config":

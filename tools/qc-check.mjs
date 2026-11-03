@@ -4,6 +4,7 @@
 //   node tools/qc-check.mjs work/tag-weave
 //   node tools/qc-check.mjs --all
 //   node tools/qc-check.mjs --all --json
+//   node tools/qc-check.mjs --all --fix   (insert isolateAddons + newWorld into flagged suites)
 //
 // Checks: metadata shape, csproj <-> metadata agreement, Localization shipped inside dist,
 // four-language key parity, 9xxxxx id collisions between mods, source hygiene,
@@ -18,6 +19,7 @@ const WORK = path.join(REPO, 'work');
 const args = process.argv.slice(2);
 const json = args.includes('--json');
 const all = args.includes('--all');
+const fix = args.includes('--fix');
 const targets = args.filter((a) => !a.startsWith('--'));
 
 const REQUIRED_KEYS = ['modName', 'modVersion', 'modAuthor', 'dllFile', 'entryClass'];
@@ -145,17 +147,58 @@ for (const name of dirs) {
     warn('RelicKit present but `RelicKit.Log = Log;` not assigned (mod logs stay silent)');
   }
 
-  // suites asserting absolute numbers need isolation + a fresh world
+  // suites asserting absolute stat numbers need isolation + a fresh world
+  const STAT_PATH = /^\/(state|cstat|combat|damage|stats)\b/i;
+  let deployFolder = null;
+  try {
+    const mj = readJson(path.join(dir, 'mod.json'));
+    const addon = (mj.deploy && mj.deploy.addons && mj.deploy.addons[0]) || null;
+    deployFolder = addon && addon.folder ? addon.folder : null;
+  } catch { /* no mod.json */ }
   for (const f of listFiles(path.join(dir, 'tests'), '.json')) {
     let suite = null;
     try { suite = readJson(f); } catch { continue; }
     const steps = Array.isArray(suite.steps) ? suite.steps : [];
     const hasIso = steps.some((s) => s && typeof s.isolateAddons === 'string');
     const hasNew = steps.some((s) => s && s.newWorld);
-    const numeric = steps.some((s) => s && s.expect && typeof s.expect.value === 'number');
-    if (numeric && (!hasIso || !hasNew)) {
-      warn(`${path.basename(f)} asserts numeric values without both isolateAddons and newWorld (other packs/old saves pollute absolute numbers)`);
+    const statNumeric = steps.some((s) => s && s.expect && typeof s.expect.value === 'number' && STAT_PATH.test(String(s.expect.path || '')));
+    if (!statNumeric || (hasIso && hasNew)) continue;
+    if (!fix) {
+      warn(`${path.basename(f)} asserts absolute stat numbers without both isolateAddons and newWorld (other packs/old saves pollute them)`);
+      continue;
     }
+    if (!deployFolder) { warn(`${path.basename(f)} needs isolation but mod.json has no deploy folder`); continue; }
+    const lines = read(f).split(/\r?\n/);
+    const stepEnd = (idx) => {
+      let start = idx;
+      while (start > 0 && !lines[start].includes('{')) start--;
+      let depth = 0;
+      for (let i = start; i < lines.length; i++) {
+        for (const ch of lines[i]) {
+          if (ch === '{') depth++;
+          else if (ch === '}') depth--;
+        }
+        if (depth === 0) return i;
+      }
+      return idx;
+    };
+    const stepsIdx = lines.findIndex((l) => /"steps"\s*:\s*\[/.test(l));
+    if (stepsIdx < 0) { warn(`${path.basename(f)} has no steps array`); continue; }
+    const firstStep = lines.slice(stepsIdx + 1).find((l) => l.trim().startsWith('{'));
+    const indent = firstStep ? /^\s*/.exec(firstStep)[0] : '    ';
+    // isolateAddons goes first (before deploy/install); newWorld goes after the last restart
+    // so a later restart cannot drop back into the old save.
+    const restartIdxs = lines.map((l, i) => (/"restart"\s*:\s*true/.test(l) ? i : -1)).filter((i) => i >= 0);
+    const newAt = restartIdxs.length ? stepEnd(restartIdxs[restartIdxs.length - 1]) + 1 : stepsIdx + 1;
+    const inserts = [];
+    if (!hasIso) inserts.push({ at: stepsIdx + 1, text: `${indent}{ "isolateAddons": "${deployFolder}" },` });
+    if (!hasNew) inserts.push({ at: newAt, text: `${indent}{ "newWorld": { "slot": 2 } },` });
+    inserts.sort((a, b) => b.at - a.at);
+    for (const ins of inserts) lines.splice(ins.at, 0, ins.text);
+    const next = lines.join('\n');
+    try { JSON.parse(next); } catch (e) { warn(`${path.basename(f)} fix would break JSON: ${e.message}`); continue; }
+    fs.writeFileSync(f, next);
+    console.log(`fixed ${path.relative(REPO, f)} (+${inserts.length} step(s))`);
   }
 }
 

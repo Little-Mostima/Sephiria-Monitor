@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  REPO, WORK, GAME, SAVES, ADDONS, STATE, health, get, getJson, tryJson, waitFor, sleep,
+  REPO, WORK, GAME, SAVES, ADDONS, WORKSHOP_LOCAL, STATE, health, get, getJson, tryJson, waitFor, sleep,
   ensureRunning, waitWorld, arm, disarm, killGame, killGameAndWait, launchGame, waitBridge,
   snapshot, restore, backupSaves, restoreSaves, verifySaves, hashFiles, deployMod, undeployMod,
   prepareTestSlot, cleanupTestSlot,
@@ -249,8 +249,27 @@ async function runStep(step, ctx, index) {
           moved.push(name);
         }
         globalThis.__isolatedAside = aside;
-        log(`isolateAddons: kept ${keep}, moved aside ${moved.length} (${moved.join(', ') || 'none'})`);
-        results.steps.push({ index, kind, keep, moved, ok: true, ms: Date.now() - started });
+        // WorkshopLocal packages load into the same world (they grant items on spawn), so move
+        // them aside too; the end-of-suite snapshot restore puts everything back.
+        const wsAside = path.join(aside, 'workshop');
+        const wsMoved = [];
+        if (fs.existsSync(WORKSHOP_LOCAL)) {
+          fs.mkdirSync(wsAside, { recursive: true });
+          for (const name of fs.readdirSync(WORKSHOP_LOCAL)) {
+            const src = path.join(WORKSHOP_LOCAL, name);
+            const dst = path.join(wsAside, name);
+            try {
+              fs.renameSync(src, dst);
+            } catch (ex) {
+              if (ex.code !== 'EXDEV' && ex.code !== 'EPERM' && ex.code !== 'EACCES' && ex.code !== 'EBUSY') throw ex;
+              fs.cpSync(src, dst, { recursive: true });
+              fs.rmSync(src, { recursive: true, force: true });
+            }
+            wsMoved.push(name);
+          }
+        }
+        log(`isolateAddons: kept ${keep}, moved aside ${moved.length} (${moved.join(', ') || 'none'}); workshop ${wsMoved.length} (${wsMoved.join(', ') || 'none'})`);
+        results.steps.push({ index, kind, keep, moved, workshop: wsMoved, ok: true, ms: Date.now() - started });
         return;
       }
       case 'undeploy': {

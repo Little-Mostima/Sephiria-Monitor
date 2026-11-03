@@ -443,7 +443,7 @@ namespace SephiriaMonitor
 
         // -------------------------------------------------------------------- ui
 
-        public static JObject Ui(string action, string name, string panelType)
+        public static JObject Ui(string action, string name, string panelType, string value = null)
         {
             string act = string.IsNullOrEmpty(action) ? "list" : action.Trim().ToLowerInvariant();
             var root = new JObject();
@@ -602,6 +602,73 @@ namespace SephiriaMonitor
                 return root;
             }
 
+            if (act == "click" || act == "settext" || act == "active")
+            {
+                // Drive a mod's own widgets without a screenshot: click a Button by GameObject
+                // name, type into a TMP_InputField (setting .text fires onValueChanged, which is
+                // what mods listen to), or list a subtree's active flags to see what a filter hid.
+                string needle = name ?? "";
+                if (needle.Length == 0)
+                {
+                    root["error"] = "name is required";
+                    return root;
+                }
+                Type buttonType = StateApi.FindType("UnityEngine.UI.Button");
+                Type inputType = StateApi.FindType("TMPro.TMP_InputField");
+                var rows = new JArray();
+                foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+                {
+                    if (go == null || !go.scene.IsValid()) continue;
+                    if (go.name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    var row = new JObject();
+                    row["name"] = go.name;
+                    row["active"] = go.activeInHierarchy;
+                    row["path"] = TransformPath(go.transform);
+                    if (act == "click")
+                    {
+                        Component btn = buttonType == null ? null : go.GetComponent(buttonType);
+                        if (btn == null) { row["error"] = "no Button"; rows.Add(row); continue; }
+                        try
+                        {
+                            object ev = btn.GetType().GetProperty("onClick").GetValue(btn, null);
+                            ev.GetType().GetMethod("Invoke").Invoke(ev, null);
+                            row["clicked"] = true;
+                        }
+                        catch (Exception e) { row["error"] = e.GetType().Name + ": " + e.Message; }
+                    }
+                    else if (act == "settext")
+                    {
+                        Component input = inputType == null ? null : go.GetComponent(inputType);
+                        if (input == null) { row["error"] = "no TMP_InputField"; rows.Add(row); continue; }
+                        try
+                        {
+                            PropertyInfo textProp = input.GetType().GetProperty("text");
+                            textProp.SetValue(input, value ?? "", null);
+                            row["text"] = Convert.ToString(textProp.GetValue(input, null));
+                        }
+                        catch (Exception e) { row["error"] = e.GetType().Name + ": " + e.Message; }
+                    }
+                    else
+                    {
+                        var kids = new JArray();
+                        int seen = 0;
+                        foreach (Transform child in go.GetComponentsInChildren<Transform>(true))
+                        {
+                            if (child == go.transform) continue;
+                            kids.Add(new JObject { ["name"] = child.name, ["active"] = child.gameObject.activeSelf });
+                            if (++seen >= 200) break;
+                        }
+                        row["children"] = kids;
+                    }
+                    rows.Add(row);
+                    if (rows.Count >= 40) break;
+                }
+                root["action"] = act;
+                root["matched"] = rows.Count;
+                root["hits"] = rows;
+                return root;
+            }
+
             // list
             var stack = new JArray();
             var all2 = mgr.AllControlStack;
@@ -631,6 +698,14 @@ namespace SephiriaMonitor
         }
 
         // ---------------------------------------------------------------- helpers
+
+        private static string TransformPath(Transform t)
+        {
+            var parts = new List<string>();
+            for (int i = 0; t != null && i < 12; i++, t = t.parent) parts.Add(t.name);
+            parts.Reverse();
+            return string.Join("/", parts);
+        }
 
         private static string DbDir()
         {

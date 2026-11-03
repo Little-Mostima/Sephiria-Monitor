@@ -30,6 +30,7 @@ export const BASE = `http://127.0.0.1:${PORT}`;
 export const SAVES = process.env.SEPHIRIA_SAVES_DIR || path.join(os.homedir(), 'Documents', 'Saved Games', 'Sephiria');
 export const ADDONS = path.join(GAME, 'AddOns');
 export const PLUGINS = path.join(GAME, 'BepInEx', 'plugins');
+export const WORKSHOP_LOCAL = path.join(GAME, 'WorkshopLocal');
 export const STEAM_URL = 'steam://rungameid/2436940';
 
 let requestSerial = 0;
@@ -292,6 +293,9 @@ export function snapshot(name) {
   fs.rmSync(dir, { recursive: true, force: true });
   ensureDir(dir);
   if (fs.existsSync(ADDONS)) copyDir(ADDONS, path.join(dir, 'AddOns'));
+  // WorkshopLocal packages also load into the world (RelicLab etc. grant items on spawn), so a
+  // suite that measures absolute stats must be able to put them aside and get them back.
+  if (fs.existsSync(WORKSHOP_LOCAL)) copyDir(WORKSHOP_LOCAL, path.join(dir, 'WorkshopLocal'));
   if (fs.existsSync(PLUGINS)) {
     // the monitor's own folder holds live session dumps and the running dll: never snapshot it
     ensureDir(path.join(dir, 'plugins'));
@@ -334,6 +338,10 @@ export function restore(name) {
     }
   }
   if (fs.existsSync(path.join(dir, 'AddOns'))) copyDir(path.join(dir, 'AddOns'), ADDONS);
+  wipe(WORKSHOP_LOCAL);
+  if (fs.existsSync(path.join(dir, 'WorkshopLocal'))) {
+    copyDir(path.join(dir, 'WorkshopLocal'), WORKSHOP_LOCAL);
+  }
   const snapPlugins = path.join(dir, 'plugins');
   if (fs.existsSync(snapPlugins)) {
     for (const name of fs.readdirSync(snapPlugins)) copyDir(path.join(snapPlugins, name), path.join(PLUGINS, name));

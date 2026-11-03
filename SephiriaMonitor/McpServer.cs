@@ -243,6 +243,8 @@ namespace SephiriaMonitor
             if (!string.IsNullOrEmpty(name)) sb.Append("&name=").Append(Uri.EscapeDataString(name));
             string type = Str(args, "type");
             if (!string.IsNullOrEmpty(type)) sb.Append("&type=").Append(Uri.EscapeDataString(type));
+            string value = Str(args, "value");
+            if (!string.IsNullOrEmpty(value)) sb.Append("&value=").Append(Uri.EscapeDataString(value));
             return Raw(sb.ToString());
         }
 
