@@ -34,6 +34,7 @@ const TASKS = {
   docs: (a) => run('doccheck.mjs', a),
   doctor: (a) => run('doctor.mjs', a),
   new: (a) => run('new-mod.mjs', a),
+  qc: (a) => run('qc-check.mjs', a),
   session: (a) => {
     const suites = a.filter((x) => !x.startsWith('--'));
     const list = suites.length ? suites : (function discover() {

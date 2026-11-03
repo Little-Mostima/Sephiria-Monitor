@@ -79,6 +79,46 @@ if (kind === 'content') {
   process.exit(0);
 }
 
+// --kind relic: copy the RelicKit-based relic template (8 sample relics, 4 locales,
+// regression suite, Localization shipped inside dist) and rebrand it.
+if (kind === 'relic') {
+  const TPL = path.resolve(REPO, '..', '..', '_re', 'MODDEV', 'templates', 'relic-pack');
+  if (!fs.existsSync(TPL)) {
+    console.error('template not found: ' + TPL);
+    process.exit(1);
+  }
+  const rename = (name) => name
+    .replace(/^RelicLab\.csproj$/, Pascal + '.csproj')
+    .replace(/^RelicLabMod\.cs$/, Pascal + 'Mod.cs')
+    .replace(/^relic-lab\.suite\.json$/, folder + '.suite.json');
+  const baseId = Number(flag('base-id', '930000'));
+  if (!Number.isInteger(baseId) || baseId < 900000) { console.error('--base-id must be an integer >= 900000'); process.exit(2); }
+  const idMap = new Map();
+  for (let i = 0; i < 8; i += 1) idMap.set(930010 + i, baseId + i);
+  const remapIds = (text) => text.replace(/\b(93001[0-7])\b/g, (m) => String(idMap.get(Number(m))));
+  const rebrand = (text) => remapIds(text)
+    .split('RelicLabMod').join(Pascal + 'Mod')
+    .split('RelicLab').join(Pascal)
+    .split('Relic Lab').join(Pascal)
+    .split('relic-lab').join(folder);
+  const copyDir = (from, to) => {
+    for (const e of fs.readdirSync(from, { withFileTypes: true })) {
+      const srcPath = path.join(from, e.name);
+      const dstPath = path.join(to, rename(e.name));
+      if (e.isDirectory()) { fs.mkdirSync(dstPath, { recursive: true }); copyDir(srcPath, dstPath); continue; }
+      if (/\.(png|jpg|jpeg)$/i.test(e.name)) { fs.copyFileSync(srcPath, dstPath); continue; }
+      fs.writeFileSync(dstPath, rebrand(fs.readFileSync(srcPath, 'utf8')), 'utf8');
+    }
+  };
+  fs.mkdirSync(dir, { recursive: true });
+  copyDir(TPL, dir);
+  console.log(`created work/${folder}/  (relic pack: 8 sample relics, ids ${baseId}..${baseId + 7})`);
+  console.log(`  next:  node tools/build-mod.mjs ${folder} --deploy`);
+  console.log(`         node tools/preflight.mjs work/${folder}`);
+  console.log(`         node tools/runner/run-suite.mjs work/${folder}/tests/${folder}.suite.json`);
+  process.exit(0);
+}
+
 const write = (rel, text) => {
   const p = path.join(dir, rel);
   fs.mkdirSync(path.dirname(p), { recursive: true });
