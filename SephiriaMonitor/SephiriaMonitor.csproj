@@ -5,7 +5,7 @@
     <AssemblyName>SephiriaMonitor</AssemblyName>
     <RootNamespace>SephiriaMonitor</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <Version>0.27.0</Version>
+    <Version>0.28.0</Version>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
   <PropertyGroup>
@@ -29,6 +29,10 @@
   <ItemGroup>
     <Reference Include="BepInEx"><HintPath>$(GameDir)\BepInEx\core\BepInEx.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="FMODUnity">
+      <HintPath>$(Managed)\FMODUnity.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Mirror"><HintPath>$(Managed)\Mirror.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp"><HintPath>$(Managed)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>

@@ -38,7 +38,7 @@ const truth = { version, catalog: catalogCount, suites: suites.length, routes, m
 // ---- rules ----
 const RULES = [
   { id: 'plugin-version', re: /(?:SephiriaMonitor|插件)\s*`?v?(\d+\.\d+\.\d+)`?|v=(\d+\.\d+\.\d+)/g, expect: version, label: 'plugin version',
-    skip: (line) => /2026-\d|当时|起|以前的|历史|版本记录/.test(line) },
+    skip: (line) => /2026-\d|当时|起|以前的|历史|版本记录|^\s*sources:/.test(line) },
   { id: 'catalog-count', re: /(\d+)\s*篇/g, expect: catalogCount, label: 'CATALOG 篇数', only: /CATALOG|资产库|文档库|沉淀/,
     skip: (line) => !/CATALOG|总目录|资产库|沉淀/.test(line) || /官方|playbooks|testing\\\\|decisions|memory/.test(line) },
   { id: 'suite-count', re: /(\d+)\s*个?\s*套件/g, expect: suites.length, label: '套件数' },
