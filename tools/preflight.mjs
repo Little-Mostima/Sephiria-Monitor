@@ -129,6 +129,22 @@ if (contentOnly) {
   record('build', true, 'skipped');
 }
 
+// 2b. localization must ship inside dist: the runner's deploy step copies dist only, so a
+// Localization folder left at the mod root shows raw keys in game (tag-weave / mixed-pack both hit it).
+if (!contentOnly) {
+  const locDir = path.join(modDir, 'Localization');
+  const srcJson = exists(locDir) ? fs.readdirSync(locDir).filter((n) => n.endsWith('.json')) : [];
+  if (srcJson.length) {
+    const distLoc = path.join(modDir, 'dist', 'Localization');
+    const distJson = exists(distLoc) ? fs.readdirSync(distLoc).filter((n) => n.endsWith('.json')) : [];
+    const missing = srcJson.filter((n) => !distJson.includes(n));
+    record('localization', missing.length === 0, missing.length
+      ? `dist/Localization missing ${missing.join(', ')} - add <None Include="..\\Localization\\**\\*.json" CopyToOutputDirectory="PreserveNewest" /> to the csproj, then delete dist/ and rebuild`
+      : `${srcJson.length} json shipped in dist`);
+    if (missing.length) finish();
+  }
+}
+
 // 3. package + validate the artifact people will actually upload
 //    Mods without workshop.json are guards/fixtures - they are testable but not publishable.
 if (!fs.existsSync(path.join(modDir, 'workshop.json'))) {
