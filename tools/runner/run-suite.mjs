@@ -259,8 +259,44 @@ async function runStep(step, ctx, index) {
         return;
       }
       case 'enter': {
-        const res = await getJson(`/enter?slot=${encodeURIComponent(String(body || '1'))}`, 30000);
-        results.steps.push({ index, kind, ok: true, detail: res, ms: Date.now() - started });
+        const slot = String(body && body.slot != null ? body.slot : body || '1');
+        const create = !!(body && body.create);
+        const res = await getJson(`/enter?slot=${encodeURIComponent(slot)}` + (create ? '&create=1' : ''), 30000);
+        results.steps.push({ index, kind, ok: true, slot, create, detail: res, ms: Date.now() - started });
+        return;
+      }
+      case 'newWorld': {
+        // Fresh save slot: move an existing SLOTn.sav aside, relaunch, then /enter?create=1.
+        // Needed whenever a suite measures absolute player stats: a long-lived save still carries
+        // relics granted by earlier packs, so absolute values would be polluted.
+        const slot = Number(body && body.slot != null ? body.slot : 2);
+        const sav = path.join(SAVES, `SLOT${slot}.sav`);
+        if (fs.existsSync(sav)) {
+          const bak = path.join(WORK, '_state', `slot${slot}-preexisting-${Date.now()}.sav`);
+          fs.mkdirSync(path.dirname(bak), { recursive: true });
+          fs.renameSync(sav, bak);
+          log(`moved pre-existing SLOT${slot}.sav -> ${bak}`);
+        }
+        killGameAndWait();
+        launchGame();
+        await waitBridge(150000);
+        let title = false;
+        for (let i = 0; i < 180; i++) {
+          const h = await tryJson('/health');
+          if (h && h.scene === 'Title') { title = true; break; }
+          await sleep(1000);
+        }
+        if (!title) fail('newWorld: title screen did not appear');
+        const res = await getJson(`/enter?slot=${slot}&create=1`, 60000);
+        log(`enter create: ${JSON.stringify(res).slice(0, 160)}`);
+        let world = false;
+        for (let i = 0; i < 180; i++) {
+          const st = await tryJson('/state');
+          if (st && st.scene === 'MainWorld') { world = true; break; }
+          await sleep(1000);
+        }
+        if (!world) fail('newWorld: MainWorld did not load');
+        results.steps.push({ index, kind, slot, ok: true, ms: Date.now() - started });
         return;
       }
       case 'files': {

@@ -312,7 +312,7 @@ namespace SephiriaMonitor
             }
             catch (Exception ex)
             {
-                return Json.Write(Json.Obj().Add("error", ex.GetType().Name).Add("message", ex.Message));
+                return Json.Write(Json.Obj().Add("error", ex.GetType().Name).Add("message", ex.Message).Add("stack", ex.StackTrace));
             }
         }
 
