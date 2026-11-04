@@ -313,7 +313,7 @@ dotnet build SephiriaMonitor -c Release
 
 - 一个改动一个 commit；标题中文一句话，不加 emoji、不写 "update"。
 - 不提交产物：`dist/`、`work/`、`*.dll`、`*.zip`、`*.sav`、`BepInEx/`、`AddOns/`、`WorkshopLocal/`（`.gitignore` 白名单，`git add -f` 也不行）。
-- 提交前跑 `node tools/do.mjs gate`（结构守护 + 文档数字 + 清单，约 5 秒）；改了进档链路再加 `--world`。
+- 提交前跑 `node tools/do.mjs gate`（结构守护 + 文档数字，约 5 秒）；改了进档链路再加 `--world`。
 - 两个仓库都装了 pre-commit 钩子（`.githooks/pre-commit` → `do.mjs gate`），直接 `git commit` 也会被拦；新克隆先跑 `node tools/do.mjs hooks`。
 - 提交用 `node tools/do.mjs commit -m "..."`：先过门禁再 add+commit，省掉「忘了跑」这一步。
 - 不 `git add .`，只 add 自己改的路径。

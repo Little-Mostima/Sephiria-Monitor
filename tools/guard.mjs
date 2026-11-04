@@ -98,6 +98,36 @@ function walk(dir, filter, out = []) {
   add('links', bad.length ? 'fail' : 'ok', bad.length ? brief(bad, 8) : docs.length + ' doc(s), all links resolve');
 }
 
+// ---------- 3b. commands named in docs actually exist ----------
+// A doc that says "run tools\harvest.mjs" after harvest.mjs was deleted costs a reader a whole
+// debugging loop. Cheap to check, and it is the only thing that keeps the command tables honest.
+{
+  const docs = walk(DOCS, (p) => p.endsWith('.md'))
+    .filter((p) => !p.includes(path.join(DOCS, 'official')) && !p.includes(path.join(DOCS, 'research')))
+    .concat([path.join(REPO, '..', '..', 'START_HERE.md'), path.join(REPO, '..', '..', 'AGENTS.md')])
+    .filter((p) => fs.existsSync(p));
+  const doSrc = fs.readFileSync(path.join(REPO, 'tools', 'do.mjs'), 'utf8');
+  const tasks = new Set([...doSrc.matchAll(/^ {2}([a-z][a-z0-9]*):/gm)].map((m) => m[1]));
+  const gone = /删除|退役|deleted|retired/i;
+  const bad = [];
+  for (const f of docs) {
+    for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+      if (gone.test(line)) continue;
+      for (const m of line.matchAll(/tools[\\/]([A-Za-z0-9_.\\/-]+\.mjs)/g)) {
+        const relTool = m[1].replace(/\\/g, '/');
+        if (!fs.existsSync(path.join(REPO, 'tools', relTool))) bad.push(rel(f) + ' -> tools/' + relTool);
+      }
+      for (const m of line.matchAll(/do\.mjs\s+([a-z][a-z0-9]*)/g)) {
+        if (!tasks.has(m[1])) bad.push(rel(f) + ' -> do.mjs ' + m[1]);
+      }
+      for (const m of line.matchAll(/_re[\\/]index[\\/]([A-Za-z0-9_.-]+\.(?:py|ps1|mjs))/g)) {
+        if (!fs.existsSync(path.join(DOCS, 'index', m[1]))) bad.push(rel(f) + ' -> _re/index/' + m[1]);
+      }
+    }
+  }
+  add('toolrefs', bad.length ? 'fail' : 'ok', bad.length ? brief(bad, 8) : docs.length + ' doc(s), every named tool exists');
+}
+
 // ---------- 4. hooks.json is one generated artifact, not two hand-edited copies ----------
 {
   const a = path.join(DOCS, 'MODDEV', 'hooks.json');
