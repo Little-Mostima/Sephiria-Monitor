@@ -12,8 +12,10 @@ export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const WORK = path.join(REPO, 'work');
 export const STATE = path.join(WORK, '_state');
 export const RUNS = path.join(WORK, '_runs');
-// _re sits beside _work, not inside it: repo is _work/repo, so two levels up.
-export const DOCS = path.resolve(REPO, '..', '..', '_re');
+// _re and board.json sit beside _work, not inside it: repo is _work/repo, so two levels up.
+export const ROOT = path.resolve(REPO, '..', '..');
+export const DOCS = path.join(ROOT, '_re');
+export const BOARD = path.join(ROOT, 'board.json');
 
 export const GAME = process.env.SEPHIRIA_GAME_DIR || 'D:\\steam\\steamapps\\common\\Sephiria';
 export const PORT = Number(process.env.SEPHIRIA_BRIDGE_PORT || 47901);

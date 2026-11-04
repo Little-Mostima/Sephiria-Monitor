@@ -62,6 +62,8 @@ const TASKS = {
   release: (a) => run('release.mjs', a),
   compat: (a) => run('compat.mjs', a),
   docs: (a) => run('doccheck.mjs', a),
+  // Pass-through so a task list lives behind the same entry point as everything else.
+  board: (a) => run('board.mjs', a),
   guard: (a) => run('guard.mjs', a),
   plugin: (a) => run('plugin.mjs', a),
   encoding: (a) => run('encoding.mjs', a),
