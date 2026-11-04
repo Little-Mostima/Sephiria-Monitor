@@ -242,8 +242,32 @@ namespace SephiriaMonitor
             string pickGuid = null;
             EProceduralMerchantType filter;
             bool useFilter = TryType(to, out filter);
+            // Exact name/guid first: "TrainingSchool" must not land on "TrainingSchool_Greatsword",
+            // which is what the substring pass below would pick.
+            if (!useFilter && !string.IsNullOrEmpty(target))
+            {
+                foreach (KeyValuePair<string, FloorData> kv in dm.generatedFloors)
+                {
+                    FloorData f = kv.Value;
+                    if (f == null || (f.isHidden && !includeHidden))
+                    {
+                        continue;
+                    }
+                    if (string.Equals(kv.Key, target, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(f.name, target, StringComparison.OrdinalIgnoreCase))
+                    {
+                        pick = f;
+                        pickGuid = kv.Key;
+                        break;
+                    }
+                }
+            }
             foreach (KeyValuePair<string, FloorData> kv in dm.generatedFloors)
             {
+                if (pick != null)
+                {
+                    break;
+                }
                 FloorData f = kv.Value;
                 if (f == null || (f.isHidden && !includeHidden))
                 {
