@@ -8,4 +8,14 @@
 !/install.ps1
 !/SephiriaMonitor/
 !/tools/
+!/work/
+
+# Mods are sources too (they used to be silently untracked: the whitelist forgot work/).
+# Build output, run artifacts and recorded baselines stay local.
+/work/_state/
+/work/_runs/
+/work/_compat/
+/work/*/dist/
+/work/*/src/obj/
+/work/*/src/bin/
 /tools/runner/baseline/

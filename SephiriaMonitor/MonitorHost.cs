@@ -29,6 +29,10 @@ namespace SephiriaMonitor
         private void Tick()
         {
             MainThreadPump.Drain();
+            if (F8Pressed())
+            {
+                ModOps.GrantAllTestItems();
+            }
             Movement.Tick();
             PlayerOps.Tick();
             ModOptionsBridge.Tick();
@@ -95,6 +99,41 @@ namespace SephiriaMonitor
         {
             Events.Note("shutdown", "host destroyed");
             Session.Close();
+        }
+
+        /// <summary>
+        /// F8 test-grant hotkey. The game runs the Input System package, so the
+        /// legacy UnityEngine.Input API throws; read the new Keyboard via
+        /// reflection (no hard assembly reference) and fall back to legacy Input.
+        /// </summary>
+        private static bool F8Pressed()
+        {
+            try
+            {
+                Type kbd = Type.GetType("UnityEngine.InputSystem.Keyboard, Unity.InputSystem");
+                if (kbd == null)
+                {
+                    foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        kbd = asm.GetType("UnityEngine.InputSystem.Keyboard", false);
+                        if (kbd != null) break;
+                    }
+                }
+                if (kbd != null)
+                {
+                    object current = kbd.GetProperty("current", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null, null);
+                    if (current == null) return false;
+                    object key = kbd.GetProperty("f8Key", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)?.GetValue(current, null);
+                    if (key == null) return false;
+                    object pressed = key.GetType().GetProperty("wasPressedThisFrame", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)?.GetValue(key, null);
+                    return pressed is bool b && b;
+                }
+                return Input.GetKeyDown(KeyCode.F8);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void OnApplicationQuit()

@@ -14,8 +14,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   REPO, getJson, tryJson, health, isGameRunning, killGameAndWait, launchGame,
-  waitBridge, arm, waitWorld, deployMod, sleep,
+  waitBridge, deployMod, sleep,
 } from './runner/lib.mjs';
+import { enterWorld } from './session.mjs';
 
 const argv = process.argv.slice(2);
 const name = argv.find((a) => !a.startsWith('--'));
@@ -83,8 +84,7 @@ async function restart() {
   await killGameAndWait({ timeoutMs: 30000 });
   launchGame({ consoleWindow: false });
   await waitBridge(150000);
-  await arm(120);
-  await waitWorld({ timeoutMs: 180000, log: (m) => console.log('  ' + m) });
+  await enterWorld({ timeoutMs: 180000, log: (m) => console.log('  ' + m) });
 }
 
 async function cycle(reason) {
@@ -97,8 +97,7 @@ async function cycle(reason) {
     console.log('  game not running - starting it');
     launchGame({ consoleWindow: false });
     await waitBridge(150000);
-    await arm(120);
-    await waitWorld({ timeoutMs: 180000, log: (m) => console.log('  ' + m) });
+    await enterWorld({ timeoutMs: 180000, log: (m) => console.log('  ' + m) });
   } else {
     await restart();
   }

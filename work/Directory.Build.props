@@ -1,0 +1,29 @@
+<Project>
+  <!-- 所有 work/<mod>/src/*.csproj 共享的配置：改这里，所有 mod 一起生效。 -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <NoWarn>CS0436</NoWarn>
+    <OutputPath>..\dist\</OutputPath>
+    <DebugType>none</DebugType>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <PropertyGroup>
+    <GameDir Condition="'$(SEPHIRIA_GAME_DIR)' != ''">$(SEPHIRIA_GAME_DIR)</GameDir>
+    <GameDir Condition="'$(GameDir)' == '' AND Exists('D:\steam\steamapps\common\Sephiria\Sephiria_Data\Managed')">D:\steam\steamapps\common\Sephiria</GameDir>
+    <Managed>$(GameDir)\Sephiria_Data\Managed</Managed>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony"><HintPath>$(Managed)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(Managed)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <!-- JSON 配置解析（游戏自带 Newtonsoft；JsonUtility 对嵌套数组不可靠） -->
+    <Reference Include="Newtonsoft.Json"><HintPath>$(Managed)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mirror"><HintPath>$(Managed)\Mirror.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(Managed)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(Managed)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- JsonUtility（读 mod 自己的 JSON 配置） -->
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(Managed)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

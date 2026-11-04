@@ -474,6 +474,8 @@ namespace SephiriaMonitor
                         return PlayerOps.CustomStat(Query(query, "name", ""));
                     case "/grant":
                         return PlayerOps.Grant(Int(query, "item", 0), Int(query, "count", 1));
+                    case "/grantmod":
+                        return Json.Write(ModOps.GrantTestItems(Query(query, "mod", "")));
                     case "/heal":
                         return PlayerOps.Heal(Num(query, "hp", 0f));
                     case "/money":
@@ -550,7 +552,7 @@ namespace SephiriaMonitor
                     case "/saves":
                         return Json.Write(TitleControl.Slots());
                     case "/enter":
-                        return Json.Write(TitleControl.Enter(Query(query, "slot", ""), Query(query, "create", "0") == "1", Query(query, "name", "")));
+                        return Json.Write(TitleControl.Enter(Query(query, "slot", ""), Query(query, "create", "0") == "1", Query(query, "name", ""), Query(query, "skip", "1") != "0"));
                     case "/prepnew":
                         return Json.Write(TitleControl.PrepareNew(Query(query, "slot", ""), Query(query, "name", "Tester"), Query(query, "fresh", "0") == "1"));
                     case "/enterstatus":
@@ -803,9 +805,5 @@ private static float? ParseFloat(string text)
             return null;
         }
 
-        private static string FilteredMarkerHook()
-        {
-            return "";
-        }
     }
 }

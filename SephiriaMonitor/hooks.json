@@ -1,8 +1,8 @@
 {
  "schema": 2,
  "game": "Sephiria 1.1.1 (6000.3.21f1)",
- "generated": "2026-11-02",
- "note": "Machine-readable hook catalogue (schema 2: hooks + real call sites). Query with the sephiria_hooks MCP tool. Rebuild: _re/index/build-hooks.py",
+ "generated": "2026-11-04",
+ "note": "生成物，勿手改；改 _re/index/gen-hooks.py 后重跑（build-hooks.py 补 callers）。Machine-readable hook catalogue (schema 2: hooks + real call sites). Query with the sephiria_hooks MCP tool.",
  "fields": {
   "id": "stable id",
   "area": "lifecycle|data|combat|world|ui|save|net|antipattern",
@@ -1204,7 +1204,7 @@
    "side": "client",
    "kind": "api",
    "use": "加自己的快捷键（读 InputActionReference）",
-   "pitfall": "全工程 0 处 KeyCode；action 名见 assets/input-bindings.md",
+   "pitfall": "全工程 0 处 KeyCode；action 名见 volumes/地图总卷.md §8",
    "channels": "any",
    "callerCount": 0,
    "callers": []

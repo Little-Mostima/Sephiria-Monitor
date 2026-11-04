@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { discoverSuites, tierRank, describeTier } from './suites.mjs';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--'));
@@ -50,6 +51,14 @@ if (args.includes('--all')) {
 const record = (name, ok, detail) => {
   stages.push({ name, ok, detail });
   if (!asJson) console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? '  - ' + detail : ''}`);
+};
+// A skipped stage is not a pass: it is recorded as ok (it must not fail the gate) but printed as
+// "skip" and counted, so "watch never ran a suite" can never hide behind a wall of green again.
+const skipped = [];
+const skip = (name, detail) => {
+  skipped.push(name);
+  stages.push({ name, ok: true, skipped: true, detail });
+  if (!asJson) console.log(`skip  ${name}${detail ? '  - ' + detail : ''}`);
 };
 
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -167,15 +176,14 @@ if (!fs.existsSync(path.join(modDir, 'workshop.json'))) {
 
 // 4. scenario suites
 if (!skipTests) {
-  const suites = fs.readdirSync(path.join(modDir, 'tests')).filter((n) => n.endsWith('.suite.json'));
+  const all = discoverSuites({ dirs: [modDir], tier: 'full' });
+  const suites = discoverSuites({ dirs: [modDir], tier });
+  const skippedByTier = all.filter((s) => tierRank(s.tier) > tierRank(tier));
+  for (const s of skippedByTier) skip('suite:' + s.name, `tier ${s.tier} > ${tier}`);
+  if (!asJson && all.length) console.log(`  (${describeTier(tier)})`);
   for (const suite of suites) {
-    const suitePath = path.join(modDir, 'tests', suite);
-    let suiteTier = 'full';
-    try { suiteTier = JSON.parse(fs.readFileSync(suitePath, 'utf8')).tier || 'full'; } catch {}
-    if (tier === 'smoke' || (tier === 'fast' && suiteTier === 'full')) {
-      record('suite:' + suite.replace('.suite.json', ''), true, `skipped (tier ${suiteTier} > ${tier})`);
-      continue;
-    }
+    const suitePath = suite.path;
+    const suiteName = suite.name;
     // A game-driven suite can lose a restart race under load (the old process is still dying when the
     // new one boots). One retry turns that noise into a pass without hiding a real failure.
     const suiteArgs = [path.join(REPO, 'tools', 'runner', 'run-suite.mjs'), suitePath, '--no-watchdog', '--retries', String(suiteRetries), ...(reuse ? ['--reuse'] : [])];
@@ -186,17 +194,21 @@ if (!skipTests) {
     }
     const text = ((res.stdout || '') + (res.stderr || '')).trim();
     const last = text.split('\n').filter((l) => /PASS|FAIL|FAILED/.test(l)).slice(-1)[0] || text.split('\n').slice(-1)[0];
-    record('suite:' + suite.replace('.suite.json', ''), res.status === 0, last);
+    record('suite:' + suiteName, res.status === 0, last);
   }
+  if (!all.length) skip('suite', 'no .suite.json in tests/');
 } else {
-  record('suite', true, 'skipped');
+  skip('suite', '--skip-tests');
 }
 
 finish();
 
 function finish() {
   const failed = stages.filter((s) => !s.ok);
-  if (asJson) console.log(JSON.stringify({ mod: path.basename(modDir), ok: failed.length === 0, stages }, null, 2));
-  else console.log(failed.length === 0 ? '\nPREFLIGHT OK' : `\nPREFLIGHT FAILED (${failed.length} stage(s))`);
+  if (asJson) console.log(JSON.stringify({ mod: path.basename(modDir), ok: failed.length === 0, skipped, stages }, null, 2));
+  else {
+    if (skipped.length) console.log(`\n${skipped.length} stage(s) skipped: ${skipped.join(', ')}`);
+    console.log(failed.length === 0 ? '\nPREFLIGHT OK' : `\nPREFLIGHT FAILED (${failed.length} stage(s))`);
+  }
   process.exit(failed.length === 0 ? 0 : 1);
 }

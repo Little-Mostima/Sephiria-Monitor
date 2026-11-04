@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO, WORK, GAME, ADDONS } from './runner/lib.mjs';
+import { DOTNET } from './config.mjs';
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('--'));
@@ -26,8 +27,7 @@ if (csprojs.length !== 1) {
   console.error(`expected exactly one .csproj in ${srcDir}, found ${csprojs.length}`);
   process.exit(2);
 }
-const dotnet = process.env.SEPHIRIA_DOTNET || 'D:\\AscensionMod\\_work\\dotnet\\dotnet.exe';
-const res = spawnSync(dotnet, ['build', path.join(srcDir, csprojs[0]), '-c', 'Release', '-v', 'q', '--nologo', '-p:GenerateDependencyFile=false'], {
+const res = spawnSync(DOTNET, ['build', path.join(srcDir, csprojs[0]), '-c', 'Release', '-v', 'q', '--nologo', '-p:GenerateDependencyFile=false'], {
   stdio: quiet ? 'pipe' : 'inherit',
   encoding: 'utf8',
   env: { ...process.env, SEPHIRIA_GAME_DIR: GAME },

@@ -36,18 +36,6 @@ namespace SephiriaMonitor
             }
         }
 
-        /// <summary>True when the request carries a JSON-RPC message (POST /mcp).</summary>
-        public static bool IsRpc(string body)
-        {
-            if (string.IsNullOrEmpty(body)) return false;
-            for (int i = 0; i < body.Length; i++)
-            {
-                char c = body[i];
-                if (c == ' ' || c == '\t' || c == '\r' || c == '\n') continue;
-                return c == '{';
-            }
-            return false;
-        }
 
         /// <summary>Handle one JSON-RPC message; returns the response body (may be empty).</summary>
         public static string HandleBody(string body)
@@ -375,20 +363,30 @@ namespace SephiriaMonitor
                     }
                 case "enter":
                     {
-                        string res = Raw("/enter");
-                        var deadline = DateTime.UtcNow.AddSeconds(75);
-                        while (DateTime.UtcNow < deadline)
-                        {
-                            string st = Raw("/enterstatus");
-                            JObject j = Parse(st) as JObject;
-                            if (j != null && ToBool(j["ready"])) return st;
-                            if (j != null && j["error"] != null) return st;
-                            System.Threading.Thread.Sleep(500);
-                        }
-                        return res;
+                        // Raw() runs on the Unity main thread (BridgeServer -> MainThreadPump), so this
+                        // method must never sleep: the game cannot tick while we block, so the state
+                        // machine can never advance. The old loop polled a "ready" key that /enterstatus
+                        // never returned and slept 500 ms x 150 on the main thread - it always timed out
+                        // after ~75 s of a frozen game. Start the transition, return the first state, and
+                        // let the caller poll action=status.
+                        var sb = new StringBuilder("/enter?slot=").Append(ClampInt(args, "slot", 1, 1, 3));
+                        if (ToBool(args["create"])) sb.Append("&create=1");
+                        string name = Str(args, "name");
+                        if (!string.IsNullOrEmpty(name)) sb.Append("&name=").Append(Uri.EscapeDataString(name));
+                        if (args["skip"] != null) sb.Append("&skip=").Append(ToBool(args["skip"]) ? "1" : "0");
+                        string res = Raw(sb.ToString());
+                        JObject start = Parse(res) as JObject;
+                        if (start == null || !ToBool(start["ok"])) return res;
+                        string st = Raw("/enterstatus");
+                        JObject j = Parse(st) as JObject;
+                        if (j == null) return st;
+                        j["hint"] = "poll sephiria_save action=status until pending.phase is ready or failed";
+                        return j.ToString(Formatting.None);
                     }
+                case "status":
+                    return Raw("/enterstatus");
                 default:
-                    throw new ArgumentException("action must be slots|title|enter");
+                    throw new ArgumentException("action must be slots|title|enter|status");
             }
         }
 
@@ -736,13 +734,12 @@ namespace SephiriaMonitor
                 Tool("sephiria_health", "Bridge health: version, scene, session dir, counters.", Schema()),
                 Tool("sephiria_brief",
                      "One-shot overview: health + run boundaries + player + progress + combat aggregate + combos + statuses.",
-                     Schema(new[] { "top" }, new JObject { ["top"] = Prop("integer", "combat rows to keep (1-40, default 12)") })),
+                     Schema(new JObject { ["top"] = Prop("integer", "combat rows to keep (1-40, default 12)") })),
                 Tool("sephiria_status", "Scene, hp/mp/money, unit counts, counters. detail=true adds run progress.",
-                     Schema(new[] { "detail" }, new JObject { ["detail"] = Prop("boolean", "include /progress") })),
+                     Schema(new JObject { ["detail"] = Prop("boolean", "include /progress") })),
                 Tool("sephiria_inventory", "Live inventory: 64 custom stats, grid cells, potion slots, stone tablets.", Schema()),
                 Tool("sephiria_world", "Units and objects. No args: nearby units. type: list that class. type+index: reflected fields. map/x/y: collision map (dungeon only).",
-                     Schema(new[] { "type", "index", "depth", "limit", "map", "r", "x", "y", "path", "probe", "rooms" },
-                            new JObject
+                     Schema(new JObject
                             {
                                 ["type"] = Prop("string", "exact class name, e.g. Unit_Soldier"),
                                 ["index"] = Prop("integer", "instance index for /object"),
@@ -757,45 +754,49 @@ namespace SephiriaMonitor
                                 ["rooms"] = Prop("boolean", "include the room table")
                             })),
                 Tool("sephiria_events", "Structured event stream (damage/death/loot/floor/save/...). after is an incremental cursor; kinds filters.",
-                     Schema(new[] { "after", "n", "kinds" }, new JObject
+                     Schema(new JObject
                      {
                          ["after"] = Prop("integer", "only events with seq > after"),
                          ["n"] = Prop("integer", "how many, 1-500"),
                          ["kinds"] = Prop("string", "comma separated kinds, e.g. damage,death")
                      })),
                 Tool("sephiria_logs", "In-process Unity log lines (discord-ipc noise filtered). Pass after=<seq> for incremental reads.",
-                     Schema(new[] { "n", "type", "after" }, new JObject
+                     Schema(new JObject
                      {
                          ["n"] = Prop("integer", "line count 1-500"),
                          ["type"] = Prop("string", "Error|Warning|Log|Exception|Assert"),
                          ["after"] = Prop("integer", "only lines with seq > after (incremental, avoids re-reading)")
                      })),
-                Tool("sephiria_db", "Exported game databases (49 CSV tables). No table: list them. table+q: filter rows.",
-                     Schema(new[] { "table", "q", "limit", "offset" }, new JObject
+                Tool("sephiria_db", "Exported game databases (CSV tables). No table: list them. table+q: filter rows.",
+                     Schema(new JObject
                      {
                          ["table"] = Prop("string", "table name, e.g. item"),
                          ["q"] = Prop("string", "substring filter"),
                          ["limit"] = Prop("integer", "rows 1-500"),
                          ["offset"] = Prop("integer", "row offset")
                      })),
-                Tool("sephiria_hooks", "Mod hook catalogue (62 entries): signature, file:line, side, use, pitfalls, real call sites.",
-                     Schema(new[] { "q", "area", "kind", "side", "limit" }, new JObject
+                Tool("sephiria_hooks", "Mod hook catalogue: signature, file:line, side, use, pitfalls, real call sites.",
+                     Schema(new JObject
                      {
                          ["q"] = Prop("string", "substring filter"),
                          ["area"] = Prop("string", "lifecycle|data|combat|world|ui|save|net|antipattern"),
                          ["kind"] = Prop("string", "api|event|harmony|avoid"),
                          ["side"] = Prop("string", "server|client|both"),
-                         ["limit"] = Prop("integer", "1-62")
+                         ["limit"] = Prop("integer", "max rows")
                      })),
-                Tool("sephiria_save", "Save slots, title-screen state, or enter a slot and wait for the world.",
-                     Schema(new[] { "action", "slot" }, new JObject
+                Tool("sephiria_save",
+                     "Save slots, title-screen state, or enter a slot. action=enter starts the transition and returns at once (it runs on the game's main thread and must not block); poll action=status until pending.phase is ready or failed.",
+                     Schema(new JObject
                      {
-                         ["action"] = Prop("string", "slots|title|enter (default slots)"),
-                         ["slot"] = Prop("integer", "1-3 for action=enter")
+                         ["action"] = Prop("string", "slots|title|enter|status (default slots)"),
+                         ["slot"] = Prop("integer", "1-3 for action=enter"),
+                         ["create"] = Prop("boolean", "action=enter: create the slot when it is empty"),
+                         ["name"] = Prop("string", "action=enter: player name to write before hosting"),
+                         ["skip"] = Prop("boolean", "action=enter: set DestinySwitch_PrologueClear (default true)")
                      })),
                 Tool("sephiria_merchant",
                      "Merchants and floors. action=merchants lists loaded merchants + shelves; floors lists the run's floors with planned merchant type; goto moves to a floor (floor=guid/name or to=vendor); tp teleports next to a merchant; shop opens its shop panel. goto/tp/shop are write ops.",
-                     Schema(new[] { "action", "index", "name", "to", "floor", "ox", "oy", "x", "y", "hidden", "n", "charms", "tablets", "ratio", "seed" }, new JObject
+                     Schema(new JObject
                      {
                          ["action"] = Prop("string", "merchants|floors|goto|tp|shop (default merchants)"),
                          ["floor"] = Prop("string", "floor guid or name substring for action=goto"),
@@ -810,7 +811,7 @@ namespace SephiriaMonitor
                      })),
                 Tool("sephiria_travel",
                      "Reach any place. action=spots lists Interactable components (NPCs, portals, altars, beds, selectors) on the current floor with type/name/pos/distance; use teleports next to one and fires its interaction (same event the player's F key fires); rooms lists the current procedural floor's room instances with bounds/center/teleport point; jump teleports to a room by name or index. use/jump are write ops.",
-                     Schema(new[] { "action", "type", "name", "index", "room", "max", "near", "tp", "all", "ox", "oy" }, new JObject
+                     Schema(new JObject
                      {
                          ["action"] = Prop("string", "spots|use|rooms|jump (default spots)"),
                          ["type"] = Prop("string", "Interactable subclass substring, e.g. NPC|Miniscript|Victory|Quest"),
@@ -826,7 +827,7 @@ namespace SephiriaMonitor
                      })),
                 Tool("sephiria_player",
                      "Player state control (server side, for testing): action=god(on=1|0, invuln=1 for true invulnerability; default god only heals, because invulnerable players are skipped by AI target search); boss lists boss/miniboss hp and what each boss AI is targeting (use it when a boss seems stuck); heal(hp); money(set); level(set); stat(name,value) sets a custom stat absolutely; no action = info.",
-                     Schema(new[] { "action", "on", "invuln", "hp", "set", "name", "value" }, new JObject
+                     Schema(new JObject
                      {
                          ["action"] = Prop("string", "god|boss|info|heal|money|level|stat|config"),
                          ["on"] = Prop("boolean", "god on/off"),
@@ -839,7 +840,7 @@ namespace SephiriaMonitor
                      })),
                 Tool("sephiria_mods",
                      "Mod testing probes. action=list: every loaded mod (BepInEx plugins, AddOns folder mods, Workshop packages) with state and dll path. patches: Harmony patches grouped by owner, filter q=method substring or owner=modId. data: rows registered by your mod (id >= min, default 900000) from the boot CSV export. options: pages registered in the game Mod Options screen with live values (ours + Workshop mods). l10n: resolve key= across all languages, or audit prefix= (e.g. ModItem_) and see which languages are missing.",
-                     Schema(new[] { "action", "q", "owner", "kind", "min", "key", "prefix", "lang", "limit" }, new JObject
+                     Schema(new JObject
                      {
                          ["action"] = Prop("string", "list|patches|data|l10n|options|reload (default list); options = the game's Mod Options pages and current values; reload = call ReloadData() on every loaded mod that exposes it (no restart)"),
                          ["q"] = Prop("string", "patches: method substring; data: name substring"),
@@ -853,7 +854,7 @@ namespace SephiriaMonitor
                      })),
                 Tool("sephiria_ui",
                      "UI probe: action=list returns the open control stack (depth/name/type/esc); widgets lists registered UI element names; open/close a panel by name or type substring (write ops, useful to check a mod's panel).",
-                     Schema(new[] { "action", "name", "type" }, new JObject
+                     Schema(new JObject
                      {
                          ["action"] = Prop("string", "list|widgets|open|close|text (default list; text dumps what the open panels say)"),
                          ["name"] = Prop("string", "gameObject or type substring, e.g. Inventory or UI_Charm"),
@@ -883,9 +884,8 @@ namespace SephiriaMonitor
             };
         }
 
-        private static JObject Schema(string[] names, JObject props)
+        private static JObject Schema(JObject props)
         {
-            if (names == null || names.Length == 0) return Schema();
             var schema = new JObject
             {
                 ["type"] = "object",

@@ -819,6 +819,86 @@ namespace SephiriaMonitor
             return o;
         }
 
+        // ------------------------------------------------------- test-item grants
+
+        /// <summary>Invoke GrantTestItems() on one loaded AddOn (mod name or folder contains).</summary>
+        public static JObject GrantTestItems(string modName)
+        {
+            var root = new JObject();
+            try
+            {
+                var list = AddOnLoader.LoadedMods;
+                if (list == null) { root["error"] = "no addons"; return root; }
+                foreach (var m in list)
+                {
+                    if (m == null || m.Instance == null) continue;
+                    string name = m.Metadata == null ? "" : (m.Metadata.modName ?? "");
+                    string folder = string.IsNullOrEmpty(m.FolderPath) ? "" : Path.GetFileName(m.FolderPath.TrimEnd('\\', '/'));
+                    if (!string.IsNullOrEmpty(modName) &&
+                        name.IndexOf(modName, StringComparison.OrdinalIgnoreCase) < 0 &&
+                        folder.IndexOf(modName, StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+                    MethodInfo method = m.Instance.GetType().GetMethod("GrantTestItems", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                    if (method == null) continue;
+                    object result = method.Invoke(m.Instance, null);
+                    root["mod"] = name;
+                    root["folder"] = folder;
+                    root["granted"] = result is int ? (int)result : 0;
+                    return root;
+                }
+                root["error"] = "mod not found";
+                root["mod"] = modName ?? "";
+            }
+            catch (Exception e)
+            {
+                Exception inner = e.InnerException ?? e;
+                root["error"] = inner.GetType().Name + ": " + inner.Message;
+            }
+            return root;
+        }
+
+        /// <summary>Invoke GrantTestItems() on every loaded AddOn that exposes it (F8 hotkey).</summary>
+        public static JObject GrantAllTestItems()
+        {
+            var root = new JObject();
+            var arr = new JArray();
+            int total = 0;
+            try
+            {
+                var list = AddOnLoader.LoadedMods;
+                if (list == null) { root["error"] = "no addons"; return root; }
+                foreach (var m in list)
+                {
+                    if (m == null || m.Instance == null) continue;
+                    string name = m.Metadata == null ? "" : (m.Metadata.modName ?? "");
+                    MethodInfo method = m.Instance.GetType().GetMethod("GrantTestItems", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                    if (method == null) continue;
+                    var row = new JObject { ["mod"] = name };
+                    try
+                    {
+                        object result = method.Invoke(m.Instance, null);
+                        int n = result is int ? (int)result : 0;
+                        row["granted"] = n;
+                        total += n;
+                    }
+                    catch (Exception e)
+                    {
+                        Exception inner = e.InnerException ?? e;
+                        row["error"] = inner.GetType().Name + ": " + inner.Message;
+                    }
+                    arr.Add(row);
+                }
+                root["total"] = total;
+                root["mods"] = arr;
+                MonitorPlugin.LogInfo("GrantAllTestItems: " + root.ToString(Newtonsoft.Json.Formatting.None));
+            }
+            catch (Exception e)
+            {
+                root["error"] = e.GetType().Name + ": " + e.Message;
+            }
+            return root;
+        }
+
         public static JObject Reload()
         {
             var arr = new JArray();

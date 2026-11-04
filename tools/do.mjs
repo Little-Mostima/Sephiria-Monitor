@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// One entry point for the whole workflow.
+// One entry point for the whole workflow. Every task is a thin wrapper: the logic lives in the
+// script it calls, so there is exactly one implementation of each thing.
+//
 //   node tools/do.mjs build <mod> [--deploy]   build one mod (shared props, version from metadata.json)
 //   node tools/do.mjs test [<mod>|--all] [--skip-tests|--skip-build]   preflight
 //   node tools/do.mjs fast                     preflight fast tier only (no cold starts)
@@ -9,19 +11,29 @@
 //   node tools/do.mjs docs                     doc rot check
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
-//   node tools/do.mjs watch [--tier smoke|fast]  re-run the cheap checks whenever a mod or doc changes
-//   node tools/do.mjs session [suite...]      one cold start, then run suites with --reuse
-//   node tools/do.mjs ship <mod> [--stage]  build -> full preflight -> pack -> release (one publish path)
+//   node tools/do.mjs qc [<mod>|--all]         content quality checks
+//   node tools/do.mjs selfcheck                plugin self-check (routes, hooks, schema)
+//   node tools/do.mjs review [--json]          review status of the working tree
+//   node tools/do.mjs dev [--watch]            dev loop (build + deploy on change)
+//   node tools/do.mjs world [--slot N] [--fresh] [--visible]   launch and enter the world (quick channel)
+//   node tools/do.mjs watch [--tier smoke|fast|full]  re-run checks whenever a mod or doc changes
+//   node tools/do.mjs session [suite...] [--tier fast|full]  one cold start, then run suites with --reuse
+//   node tools/do.mjs ship <mod> [--stage]     build -> full preflight -> pack -> release (one publish path)
 //   node tools/do.mjs clean                    drop test runs / snapshots / build leftovers
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { REPO, WORK, killGameAndWait } from './runner/lib.mjs';
+import { REPO, WORK, DOCS, killGameAndWait } from './runner/lib.mjs';
+import { discoverSuites, describeTier, DEFAULT_TIER } from './suites.mjs';
 
 const [, , task, ...rest] = process.argv;
 const run = (script, args) => {
   const res = spawnSync(process.execPath, [path.join(REPO, 'tools', script), ...args], { stdio: 'inherit' });
   process.exit(res.status ?? 1);
+};
+const flag = (a, name, fallback = null) => {
+  const i = a.indexOf(name);
+  return i >= 0 && a[i + 1] && !a[i + 1].startsWith('--') ? a[i + 1] : fallback;
 };
 
 const TASKS = {
@@ -35,22 +47,27 @@ const TASKS = {
   doctor: (a) => run('doctor.mjs', a),
   new: (a) => run('new-mod.mjs', a),
   qc: (a) => run('qc-check.mjs', a),
+  selfcheck: (a) => run('selfcheck.mjs', a),
+  review: (a) => run('review-status.mjs', a),
+  dev: (a) => run('dev.mjs', a),
+
+  // The quick channel: one command from "nothing running" to "standing in the world".
+  world: (a) => {
+    const args = ['--world'];
+    const slot = flag(a, '--slot');
+    if (slot) args.push('--slot', slot);
+    if (a.includes('--fresh')) args.push('--fresh');
+    if (a.includes('--visible')) args.push('--visible');
+    if (a.includes('--console')) args.push('--console');
+    run('launch-bg.mjs', args);
+  },
+
   session: (a) => {
-    const suites = a.filter((x) => !x.startsWith('--'));
-    const list = suites.length ? suites : (function discover() {
-      const out = [];
-      for (const name of fs.readdirSync(WORK)) {
-        const dir = path.join(WORK, name, 'tests');
-        if (!fs.existsSync(dir)) continue;
-        for (const f of fs.readdirSync(dir)) {
-          const full = path.join(dir, f);
-          if (!f.endsWith('.suite.json')) continue;
-          try { if (JSON.parse(fs.readFileSync(full, 'utf8')).tier === 'fast') out.push(full); } catch {}
-        }
-      }
-      return out;
-    })();
-    console.log(`session: ${list.length} suite(s) against one running world`);
+    const tier = flag(a, '--tier', 'fast');
+    const explicit = a.filter((x) => !x.startsWith('--') && x !== tier);
+    const list = explicit.length ? explicit : discoverSuites({ tier }).map((s) => s.path);
+    console.log(`session: ${list.length} suite(s) against one running world (${describeTier(tier)})`);
+    if (!list.length) { console.error('session: no suite matched - nothing to run'); process.exit(1); }
     const boot = spawnSync(process.execPath, [path.join(REPO, 'tools', 'launch-bg.mjs'), '--world'], { stdio: 'inherit' });
     if ((boot.status ?? 1) !== 0) { console.error('SESSION FAILED: could not start the game'); process.exit(1); }
     const failed = [];
@@ -63,6 +80,7 @@ const TASKS = {
     console.log(failed.length ? `\nSESSION FAILED: ${failed.join(', ')}` : `\nSESSION OK - ${list.length} suite(s)`);
     process.exit(failed.length ? 1 : 0);
   },
+
   ship: (a) => {
     const arg = a.find((x) => !x.startsWith('--'));
     if (!arg) { console.error('usage: do.mjs ship <mod> [--stage]'); process.exit(2); }
@@ -81,8 +99,11 @@ const TASKS = {
     }
     console.log(`\nSHIP OK  ${mod}`);
   },
+
   watch: (a) => {
-    const tier = a.includes('--tier') ? a[a.indexOf('--tier') + 1] : 'smoke';
+    // Default 'fast', not 'smoke': smoke means "static checks only", so the old default made the
+    // watcher report green while never running a single suite.
+    const tier = flag(a, '--tier', 'fast');
     const roots = [];
     for (const name of fs.readdirSync(WORK)) {
       const dir = path.join(WORK, name);
@@ -92,8 +113,7 @@ const TASKS = {
         if (fs.existsSync(p)) roots.push(p);
       }
     }
-    const docs = path.join(REPO, '..', '_re');
-    if (fs.existsSync(docs)) roots.push(docs);
+    if (fs.existsSync(DOCS)) roots.push(DOCS);
     const stamp = () => {
       let n = 0;
       const walk = (p) => {
@@ -106,7 +126,7 @@ const TASKS = {
       for (const r of roots) walk(r);
       return n;
     };
-    console.log(`watching ${roots.length} roots (tier ${tier}) - Ctrl+C to stop`);
+    console.log(`watching ${roots.length} roots - ${describeTier(tier)} - Ctrl+C to stop`);
     let last = stamp();
     let running = false;
     setInterval(() => {
@@ -122,6 +142,7 @@ const TASKS = {
       last = stamp();
     }, 1500);
   },
+
   clean: () => {
     const drop = ['_runs', '_state', '_compat'].map((d) => path.join(WORK, d));
     let bytes = 0;

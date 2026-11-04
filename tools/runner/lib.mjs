@@ -19,19 +19,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export const RUNNER_DIR = path.dirname(fileURLToPath(import.meta.url));
-export const REPO = path.resolve(RUNNER_DIR, '..', '..');
-export const WORK = path.join(REPO, 'work');
-export const STATE = path.join(WORK, '_state');
-export const RUNS = path.join(WORK, '_runs');
-export const GAME = process.env.SEPHIRIA_GAME_DIR || 'D:\\steam\\steamapps\\common\\Sephiria';
-export const PORT = Number(process.env.SEPHIRIA_BRIDGE_PORT || 47901);
-export const BASE = `http://127.0.0.1:${PORT}`;
-// Documents may be redirected (OneDrive/known-folder move), so resolve it the way Unity does.
-export const SAVES = process.env.SEPHIRIA_SAVES_DIR || path.join(os.homedir(), 'Documents', 'Saved Games', 'Sephiria');
-export const ADDONS = path.join(GAME, 'AddOns');
-export const PLUGINS = path.join(GAME, 'BepInEx', 'plugins');
-export const WORKSHOP_LOCAL = path.join(GAME, 'WorkshopLocal');
-export const STEAM_URL = 'steam://rungameid/2436940';
+// Paths, port and dotnet live in tools/config.mjs - one definition, re-exported here so the
+// runner keeps its historical import surface.
+import { REPO, WORK, STATE, RUNS, DOCS, GAME, PORT, BASE, SAVES, ADDONS, PLUGINS, WORKSHOP_LOCAL, STEAM_URL } from '../config.mjs';
+export { REPO, WORK, STATE, RUNS, DOCS, GAME, PORT, BASE, SAVES, ADDONS, PLUGINS, WORKSHOP_LOCAL, STEAM_URL, DOTNET } from '../config.mjs';
 
 let requestSerial = 0;
 
@@ -221,65 +212,12 @@ export async function rescan(timeoutMs = 30000) {
   return r;
 }
 
-export async function arm(minutes = 120, slot = 0) {
-  return getJson(`/arm?minutes=${minutes}` + (slot ? `&slot=${slot}` : ''));
-}
+// Entering the world lives in tools/session.mjs (requestEnter / awaitWorld / enterWorld /
 
-// A dedicated test slot: clone SLOT1.sav to SLOTn.sav before a suite and remove it afterwards,
-// so a test run never writes the slot the player actually uses.
-export function prepareTestSlot(n) {
-  if (!n || n === 1) return null;
-  const src = path.join(SAVES, 'SLOT1.sav');
-  const dst = path.join(SAVES, `SLOT${n}.sav`);
-  if (!fs.existsSync(src)) throw new Error('no SLOT1.sav to clone for the test slot');
-  // remember what already belongs to this slot so cleanup only removes what the test created
-  const before = fs.existsSync(SAVES) ? fs.readdirSync(SAVES).filter((f) => f.startsWith(`SLOT${n}`)) : [];
-  fs.writeFileSync(path.join(STATE, `slot${n}-before.json`), JSON.stringify(before));
-  if (fs.existsSync(dst)) fs.copyFileSync(dst, dst + '.bak');
-  fs.copyFileSync(src, dst);
-  return dst;
-}
+// prepareFreshSlot / arm / disarm / prepareTestSlot / cleanupTestSlot). It used to live here,
 
-export function cleanupTestSlot(n) {
-  if (!n || n === 1) return;
-  const dst = path.join(SAVES, `SLOT${n}.sav`);
-  const bak = dst + '.bak';
-  const manifest = path.join(STATE, `slot${n}-before.json`);
-  let before = [];
-  try { before = JSON.parse(fs.readFileSync(manifest, 'utf8')); } catch {}
-  const keep = new Set(before);
-  try {
-    // remove everything the test created for this slot (save, TMP, the game's own backups)
-    for (const f of fs.readdirSync(SAVES)) {
-      if (!f.startsWith(`SLOT${n}`) || keep.has(f) || f.endsWith('.bak')) continue;
-      fs.rmSync(path.join(SAVES, f), { force: true });
-    }
-    if (fs.existsSync(bak)) { fs.copyFileSync(bak, dst); fs.rmSync(bak); }
-    fs.rmSync(manifest, { force: true });
-  } catch {}
-}
+// which is how six call sites ended up each re-implementing the sequence.
 
-export async function disarm() {
-  return getJson('/disarm');
-}
-
-/** Wait until the game is in MainWorld; arms the gate first if it is still on the title screen. */
-export async function waitWorld({ timeoutMs = 180000, log = () => {}, slot = 0 } = {}) {
-  const h = await health();
-  if (h && h.scene === 'MainWorld') return h;
-  if (h && h.scene === 'Title') {
-    log('title screen reached, arming auto-enter');
-    await arm(120, slot);
-  } else {
-    // still booting: arm right away, the plugin reads the marker when the title appears
-    await tryJson('/arm?minutes=120' + (slot ? `&slot=${slot}` : '')).catch(() => null);
-  }
-  return waitFor(async () => {
-    minimizeGameNow();
-    const cur = await health();
-    return cur && cur.scene === 'MainWorld' ? cur : null;
-  }, { timeoutMs, intervalMs: 2000, label: 'MainWorld' });
-}
 
 // ---------- isolation ----------
 

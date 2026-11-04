@@ -10,7 +10,7 @@
 
 - 游戏：Sephiria 1.1.1（Unity 6000.3.21f1，Mono）
 - 依赖：BepInEx 5.4.x (x64)
-- 版本：插件 **0.23.0**，协议 **MCP 2025-06-18**
+- 版本：插件 **0.28.0**，协议 **MCP 2025-06-18**
 
 ---
 
@@ -159,7 +159,7 @@ Copy-Item SephiriaMonitor\hooks.json $dst -Force
 启动游戏 → **读档进入 MainWorld**（标题界面不加载数据库，桥也不会起）→ 然后：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version 与仓库 Version 一致（当前 0.23.0）
+Invoke-RestMethod http://127.0.0.1:47901/health     # 期望 version 与 MonitorPlugin.Version 一致（当前 0.28.0）
 node tools\selfcheck.mjs                            # 期望 24 passed, 0 failed
 ```
 
@@ -231,7 +231,7 @@ DSH 的 `cordis.patch.yml` 同理，`args` 指向 `mcp-stdio.mjs` 即可。环�
 | `sephiria_player` | **写操作**：`action=god`（`on=1` 只回血、可被索敌；`invuln=1` 真无敌但 AI 会跳过你）、`boss`（Boss 血量/位置/当前动作/目标）、`heal/money/level/stat`、`config`（`npcDamage=0` 不记录 NPC 互殴） |
 | `sephiria_screenshot` | 兜底：游戏窗口截图 |
 
-同一个端口还提供 56 条 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
+同一个端口还提供一批 GET 路由（`/health /state /player /world /inventory /combat /runs /events /objects /object /db /map /saves …`，全表见 `_re\index\plugin-routes.tsv`），MCP 工具只是它们的薄封装——想省 token 就直接 GET。
 
 ---
 
@@ -299,5 +299,37 @@ dotnet build SephiriaMonitor -c Release
 - **自动进档默认完全关闭**：`[title] AutoEnter=false`；即使打开，也必须存在 2 小时有效期的标记文件，且每进程只生效一次，正常游玩不会被打断。
 - 只监听 `127.0.0.1`，不对外网开放；请勿把它暴露到公网或打包进工坊内容。
 - 不含任何绕过、注入或修改游戏逻辑的代码；Harmony 只用于读取（`Postfix` 观测）。
+
+## 11. 提交、推送与发布
+
+**默认不推送**：不主动 push / release / 改 About，等用户明确说「push / 发布」。推前给一句话摘要：推什么、几个 commit、动哪些文件。
+
+### 11.1 提交
+
+- 一个改动一个 commit；标题中文一句话，不加 emoji、不写 "update"。
+- 不提交产物：`dist/`、`work/`、`*.dll`、`*.zip`、`*.sav`、`BepInEx/`、`AddOns/`、`WorkshopLocal/`（`.gitignore` 白名单，`git add -f` 也不行）。
+- 不 `git add .`，只 add 自己改的路径。
+- 提交身份：`Little-Mostima <350866909+Little-Mostima@users.noreply.github.com>`。
+
+### 11.2 推前检查
+
+扫一遍：邮箱（`noreply@users.noreply.github.com` 除外）、本机路径（`C:\Users\<名>`）、凭据（token / key / cookie / `gho_` / `ghp_` / `sk-`）、内网 IP、产物。
+
+### 11.3 推送
+
+```powershell
+git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin main
+```
+
+- token 不落盘：`git-credential-manager get` 取 `password=` 行。
+- GitHub API 走 `Invoke-RestMethod -Proxy`；传资产用 `curl.exe --data-binary @<文件> .../releases/<id>/assets?name=<文件名>`。
+
+### 11.4 发布
+
+- 描述三段：一句话功能 + 一句话让 AI 安装（版本号不写死）+ 必须带上的内容（资产表、版本、一行校验结果）；其余不写。
+- tag 指向发布内容 commit：先改文档再打 tag。
+- 包用 `git archive HEAD` 生成，扫一遍有没有 `work/`、`dist/`、mod 产物。
+- 资产替换：删旧 → 传新 → 复查 assets 列表与大小。
+- 版本号只认源码常量。
 
 MIT License.

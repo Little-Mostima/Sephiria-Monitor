@@ -13,12 +13,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   REPO, WORK, GAME, SAVES, ADDONS, WORKSHOP_LOCAL, STATE, health, get, getJson, tryJson, waitFor, sleep,
-  ensureRunning, waitWorld, arm, disarm, killGame, killGameAndWait, launchGame, waitBridge,
+  ensureRunning, killGame, killGameAndWait, launchGame, waitBridge,
   snapshot, restore, backupSaves, restoreSaves, verifySaves, hashFiles, deployMod, undeployMod,
-  prepareTestSlot, cleanupTestSlot,
   readManifest, modDir, pick, compare, numDiff, artifactsDir, captureArtifacts,
   isGameRunning, copyDir, installPackage, removePackage, rescan,
 } from './lib.mjs';
+import { arm, disarm, enterWorld, requestEnter, awaitWorld, awaitTitle, prepareFreshSlot, prepareTestSlot, cleanupTestSlot } from '../session.mjs';
 
 const argv = process.argv.slice(2);
 const opts = {
@@ -207,7 +207,7 @@ async function runStep(step, ctx, index) {
           launchGame();
           await waitBridge(150000);
         }
-        await waitWorld({ timeoutMs: 180000, log, slot: opts.slot });
+        await enterWorld({ timeoutMs: 180000, log, slot: opts.slot });
         results.steps.push({ index, kind, ok: true, ms: Date.now() - started });
         return;
       }
@@ -308,10 +308,7 @@ async function runStep(step, ctx, index) {
         const slot = String(body && body.slot != null ? body.slot : body || '1');
         const create = !!(body && body.create);
         const name = body && body.name ? String(body.name) : '';
-        const res = await getJson(
-          `/enter?slot=${encodeURIComponent(slot)}` + (create ? '&create=1' : '') + (name ? `&name=${encodeURIComponent(name)}` : ''),
-          30000,
-        );
+        const res = await requestEnter({ slot, create, name });
         results.steps.push({ index, kind, ok: true, slot, create, name: name || undefined, detail: res, ms: Date.now() - started });
         return;
       }
@@ -326,38 +323,10 @@ async function runStep(step, ctx, index) {
         killGameAndWait();
         launchGame();
         await waitBridge(150000);
-        let title = false;
-        for (let i = 0; i < 180; i++) {
-          const h = await tryJson('/health');
-          if (h && h.scene === 'Title') { title = true; break; }
-          await sleep(1000);
-        }
-        if (!title) fail('newWorld: title screen did not appear');
-        let via = 'prepnew';
-        let prep = null;
-        try {
-          prep = await getJson(`/prepnew?slot=SLOT${slot}&name=${encodeURIComponent(name)}&fresh=1`, 60000);
-          log(`prepnew: ${JSON.stringify(prep).slice(0, 200)}`);
-        } catch (ex) {
-          log(`prepnew error: ${ex.message}`);
-        }
-        if (!prep || prep.ok !== true) {
-          via = 'create';
-          log(`newWorld: prepnew unavailable, creating the profile through the game instead`);
-          const res = await getJson(`/enter?slot=SLOT${slot}&create=1&name=${encodeURIComponent(name)}`, 60000);
-          log(`enter(create): ${JSON.stringify(res).slice(0, 200)}`);
-          if (!res || res.ok === false) fail(`newWorld: create+enter failed: ${JSON.stringify(res).slice(0, 200)}`);
-        } else {
-          const res = await getJson(`/enter?slot=SLOT${slot}`, 60000);
-          log(`enter: ${JSON.stringify(res).slice(0, 160)}`);
-        }
-        let world = false;
-        for (let i = 0; i < 180; i++) {
-          const st = await tryJson('/state');
-          if (st && st.scene === 'MainWorld') { world = true; break; }
-          await sleep(1000);
-        }
-        if (!world) fail('newWorld: MainWorld did not load');
+        await awaitTitle({ timeoutMs: 180000, log });
+        const via = await prepareFreshSlot({ slot, name, log });
+        await requestEnter({ slot, name, skip: true, create: via === 'create' });
+        await awaitWorld({ timeoutMs: 180000, log });
         // Absolute check: the slot we are standing on must be the clean profile we asked for.
         await sleep(1200);
         const saves = await tryJson('/saves');
@@ -433,9 +402,8 @@ async function reuseSession() {
     throw new Error('--reuse: the bridge is down — start the game first (node tools/launch-bg.mjs --world)');
   }
   if (h0.scene !== 'MainWorld') {
-    log('--reuse: at title, arming and waiting for the world');
-    await arm(120, opts.slot || 0);
-    await waitWorld({ log, slot: opts.slot || 0 });
+    log('--reuse: at title, entering the world');
+    await enterWorld({ log, slot: opts.slot || 0 });
   }
   return health();
 }
@@ -474,7 +442,7 @@ async function main() {
   let attempt = 0;
   for (;;) {
     try {
-      await waitWorld({ log, slot: opts.slot });
+      await enterWorld({ log, slot: opts.slot });
       for (const name of suite.mods || []) {
         const manifest = readManifest(name);
         if (manifest.autoDeploy) deployMod(name, log);
@@ -500,8 +468,7 @@ async function main() {
       await sleep(4000);
       launchGame();
       await waitBridge(120000);
-      await arm(120, opts.slot);
-      await waitWorld({ timeoutMs: 180000, log });
+      await enterWorld({ timeoutMs: 180000, log, slot: opts.slot });
     }
   }
 

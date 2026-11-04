@@ -5,8 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   REPO, WORK, sleep, getJson, installPackage, removePackage,
-  killGameAndWait, launchGame, waitBridge, arm, waitWorld,
+  killGameAndWait, launchGame, waitBridge,
 } from './runner/lib.mjs';
+import { enterWorld } from './session.mjs';
 
 const args = process.argv.slice(2);
 const flag = (f) => args.includes(f);
@@ -108,9 +109,8 @@ async function combo(mods) {
   killGameAndWait();
   launchGame({ hidden: !process.env.SEPHIRIA_VISIBLE });
   await waitBridge(120000);
-  await arm(120);
   try {
-    await waitWorld({ timeoutMs: 120000 });
+    await enterWorld({ timeoutMs: 120000 });
   } catch (e) {
     const lines = logLines(await getJson('/logs?n=300').catch(() => ({})));
     killGameAndWait();
