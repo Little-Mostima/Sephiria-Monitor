@@ -13,6 +13,11 @@
 //   node tools/do.mjs plugin [--no-deploy]     build the monitor plugin (warnings are errors) and deploy it
 //   node tools/do.mjs encoding [--fix]         check (or repair) text file encodings: UTF-8, no BOM
 //   node tools/do.mjs q <api|sig|grep|item|hook|doc|table|src|cat|live> ...   offline index query (q.py, UTF-8 output)
+//   node tools/do.mjs gate                     the commit gate (guard + doccheck); the pre-commit hook runs this
+//   node tools/do.mjs commit -m "msg"          gate, then stage everything and commit
+//   node tools/do.mjs fix                      mechanical repairs (encoding --fix, catalog, links)
+//   node tools/do.mjs format [--fix]           C# formatting check (dotnet format is the definition)
+//   node tools/do.mjs hooks [--check]          install / verify the pre-commit gate in both repos
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
 //   node tools/do.mjs qc [<mod>|--all]         content quality checks
@@ -60,6 +65,43 @@ const TASKS = {
   guard: (a) => run('guard.mjs', a),
   plugin: (a) => run('plugin.mjs', a),
   encoding: (a) => run('encoding.mjs', a),
+  format: (a) => run('format.mjs', a),
+  hooks: (a) => run('install-hooks.mjs', a),
+  // The commit gate: everything that must hold before a commit lands. Same code the pre-commit
+  // hook runs, so "it passed locally" and "it passed the hook" cannot diverge.
+  gate: (a) => {
+    const g = spawnSync(process.execPath, [path.join(REPO, 'tools', 'guard.mjs'), ...a], { stdio: 'inherit' });
+    const d = spawnSync(process.execPath, [path.join(REPO, 'tools', 'doccheck.mjs')], { stdio: 'inherit' });
+    const ok = (g.status ?? 1) === 0 && (d.status ?? 1) === 0;
+    console.log(ok ? '\nGATE OK' : '\nGATE FAILED');
+    process.exit(ok ? 0 : 1);
+  },
+  // One command to commit: gate first, then stage and commit. An agent that forgets the gate cannot
+  // forget this one, and the pre-commit hook catches the ones that call git directly.
+  commit: (a) => {
+    const msg = flag(a, '-m') || flag(a, '--message');
+    if (!msg) {
+      console.error('usage: node tools/do.mjs commit -m "message"');
+      process.exit(2);
+    }
+    const g = spawnSync(process.execPath, [path.join(REPO, 'tools', 'guard.mjs')], { stdio: 'inherit' });
+    if ((g.status ?? 1) !== 0) {
+      console.error('\ncommit: gate failed, nothing committed');
+      process.exit(1);
+    }
+    spawnSync('git', ['-C', REPO, 'add', '-A'], { stdio: 'inherit' });
+    const c = spawnSync('git', ['-C', REPO, 'commit', '-m', msg], { stdio: 'inherit' });
+    process.exit(c.status ?? 1);
+  },
+  // Mechanical repairs only. Anything that needs a decision stays a failure for a human to read.
+  fix: () => {
+    const enc = spawnSync(process.execPath, [path.join(REPO, 'tools', 'encoding.mjs'), '--fix'], { stdio: 'inherit' });
+    const cat = spawnSync(PYTHON, [path.join(DOCS, 'index', 'build-catalog.py')], { stdio: 'inherit' });
+    const lnk = spawnSync(PYTHON, [path.join(DOCS, 'index', 'check-links.py')], { stdio: 'inherit' });
+    const ok = [enc, cat, lnk].every((r) => (r.status ?? 1) === 0);
+    console.log(ok ? '\nFIX OK' : '\nFIX: something still needs a human');
+    process.exit(ok ? 0 : 1);
+  },
   // q.py prints Chinese; without PYTHONIOENCODING the pipe decodes as GBK and every answer
   // arrives as mojibake. One entry point, correct encoding, no per-call incantation.
   q: (a) => {

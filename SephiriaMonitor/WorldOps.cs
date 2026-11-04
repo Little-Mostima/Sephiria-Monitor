@@ -137,7 +137,7 @@ namespace SephiriaMonitor
             }
             root["floor"] = gen.name;
             root["generator"] = gen.GetType().Name;
-                        List<object> list = new List<object>();
+            List<object> list = new List<object>();
             HashSet<TileBasedRoomInstance> seen = new HashSet<TileBasedRoomInstance>();
             IDictionary rooms = Field(gen, "roomsByPosition") as IDictionary;
             if (rooms != null)

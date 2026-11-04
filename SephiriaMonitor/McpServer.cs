@@ -144,10 +144,11 @@ namespace SephiriaMonitor
                 case "sephiria_brief": text = Brief(args); break;
                 case "sephiria_status": text = Status(args); break;
                 case "sephiria_merchant": text = Merchant(args); break;
-                case "sephiria_player": text = PlayerTool(args); break;                case "sephiria_mods": text = Mods(args); break;
+                case "sephiria_player": text = PlayerTool(args); break;
+                case "sephiria_mods": text = Mods(args); break;
                 case "sephiria_ui": text = Ui(args); break;
 
-                    case "sephiria_travel": text = Travel(args); break;
+                case "sephiria_travel": text = Travel(args); break;
                 case "sephiria_inventory": text = Raw("/inventory"); break;
                 case "sephiria_world": text = World(args); break;
                 case "sephiria_events": text = Events(args); break;

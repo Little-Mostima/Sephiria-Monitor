@@ -35,49 +35,49 @@ namespace SephiriaMonitor
                     }
                     try
                     {
-                    string label = Safe(() => s.displayName != null ? s.displayName.ToString() : "");
-                    string id = s.id ?? "";
-                    bool hit = string.IsNullOrEmpty(q) ||
-                        id.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        label.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
-                    JArray targets = new JArray();
-                    if (s.spawnTargets != null)
-                    {
-                        foreach (GameObject go in s.spawnTargets)
+                        string label = Safe(() => s.displayName != null ? s.displayName.ToString() : "");
+                        string id = s.id ?? "";
+                        bool hit = string.IsNullOrEmpty(q) ||
+                            id.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            label.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+                        JArray targets = new JArray();
+                        if (s.spawnTargets != null)
                         {
-                            if (go == null)
+                            foreach (GameObject go in s.spawnTargets)
                             {
-                                continue;
-                            }
-                            targets.Add(go.name);
-                            if (!units.ContainsKey(go.name))
-                            {
-                                try
+                                if (go == null)
                                 {
-                                    units[go.name] = Unit(go);
+                                    continue;
                                 }
-                                catch (Exception ex)
+                                targets.Add(go.name);
+                                if (!units.ContainsKey(go.name))
                                 {
-                                    JObject bad = new JObject();
-                                    bad["error"] = ex.GetType().Name + ": " + ex.Message;
-                                    units[go.name] = bad;
+                                    try
+                                    {
+                                        units[go.name] = Unit(go);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        JObject bad = new JObject();
+                                        bad["error"] = ex.GetType().Name + ": " + ex.Message;
+                                        units[go.name] = bad;
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (!hit)
-                    {
-                        continue;
-                    }
-                    JObject row = new JObject();
-                    row["id"] = id;
-                    row["name"] = label;
-                    row["faction"] = s.faction.ToString();
-                    row["score"] = s.score;
-                    row["maxPerWave"] = s.maxQuantityInWave;
-                    row["superArmorPercent"] = s.superArmorPercent;
-                    row["targets"] = targets;
-                    entities.Add(row);
+                        if (!hit)
+                        {
+                            continue;
+                        }
+                        JObject row = new JObject();
+                        row["id"] = id;
+                        row["name"] = label;
+                        row["faction"] = s.faction.ToString();
+                        row["score"] = s.score;
+                        row["maxPerWave"] = s.maxQuantityInWave;
+                        row["superArmorPercent"] = s.superArmorPercent;
+                        row["targets"] = targets;
+                        entities.Add(row);
                     }
                     catch (Exception ex)
                     {

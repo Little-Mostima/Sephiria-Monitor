@@ -27,7 +27,10 @@ if (csprojs.length !== 1) {
   console.error(`expected exactly one .csproj in ${srcDir}, found ${csprojs.length}`);
   process.exit(2);
 }
-const res = spawnSync(DOTNET, ['build', path.join(srcDir, csprojs[0]), '-c', 'Release', '-v', 'q', '--nologo', '-p:GenerateDependencyFile=false'], {
+// -warnaserror: a mod that compiles with warnings is a mod whose warnings nobody reads. The plugin
+// build has been warnings-as-errors since 2026-11-04; mods follow the same rule so "it built" means
+// the same thing everywhere.
+const res = spawnSync(DOTNET, ['build', path.join(srcDir, csprojs[0]), '-c', 'Release', '-v', 'q', '--nologo', '-warnaserror', '-p:GenerateDependencyFile=false'], {
   stdio: quiet ? 'pipe' : 'inherit',
   encoding: 'utf8',
   env: { ...process.env, SEPHIRIA_GAME_DIR: GAME },

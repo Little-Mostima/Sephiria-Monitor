@@ -145,8 +145,8 @@ namespace SephiriaMonitor
                 d["vel"] = new List<object> { Math.Round(lastVel.x, 2), Math.Round(lastVel.y, 2) };
                 d["walked"] = Math.Round(walked, 1);
                 d["floorWalked"] = Math.Round(floorWalked, 1);
-    
-    
+
+
                 d["pathPoints"] = Path.Count;
                 return d;
             }

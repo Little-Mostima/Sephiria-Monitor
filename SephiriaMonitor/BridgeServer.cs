@@ -341,94 +341,94 @@ namespace SephiriaMonitor
             }
             switch (path)
             {
-                    case "/":
-                    case "/health":
-                        return Health();
-                    case "/run":
-                        return Run();
-                    case "/player":
-                        return Json.Write(PlayerState.Summary());
-                    case "/world":
-                        return Json.Write(StateApi.WorldSummary());
-                    case "/state":
-                        return StateJson();
-                    case "/scene":
-                        return Json.Write(Json.Obj().Add("scene", SceneTracker.Current).Add("prev", SceneTracker.Previous).Add("changes", SceneTracker.ChangeCount));
-                    case "/objects":
-                        return Objects(query);
-                    case "/object":
-                        return ObjectDetail(query);
-                    case "/logs":
-                        return Has(query, "after")
-                            ? LogRing.Tail(int.Parse(Query(query, "n", "200")), long.Parse(Query(query, "after", "0")))
-                            : LogRing.Tail(int.Parse(Query(query, "n", "60")));
-                    case "/events":
-                        return Events.Tail(int.Parse(Query(query, "n", "100")), long.Parse(Query(query, "after", "0")), Query(query, "kind", ""));
-                    case "/damage":
-                        return Events.DamageTail(int.Parse(Query(query, "n", "50")));
-                    case "/combat":
-                        return Combat.Stats(int.Parse(Query(query, "top", "12")));
-                    case "/runs":
-                        return Json.Write(RunTracker.Current());
-                    case "/path":
-                        return Movement.PathJson(int.Parse(Query(query, "n", "600")));
-                    case "/floor":
-                        return FloorDump.Render();
-                    case "/map":
-                        return FloorDump.AsciiView(int.Parse(Query(query, "r", "18")), ParseFloat(Query(query, "tx", "")), ParseFloat(Query(query, "ty", "")));
-                    case "/rooms":
-                        return FloorDump.RoomsJson();
-                    case "/mappath":
+                case "/":
+                case "/health":
+                    return Health();
+                case "/run":
+                    return Run();
+                case "/player":
+                    return Json.Write(PlayerState.Summary());
+                case "/world":
+                    return Json.Write(StateApi.WorldSummary());
+                case "/state":
+                    return StateJson();
+                case "/scene":
+                    return Json.Write(Json.Obj().Add("scene", SceneTracker.Current).Add("prev", SceneTracker.Previous).Add("changes", SceneTracker.ChangeCount));
+                case "/objects":
+                    return Objects(query);
+                case "/object":
+                    return ObjectDetail(query);
+                case "/logs":
+                    return Has(query, "after")
+                        ? LogRing.Tail(int.Parse(Query(query, "n", "200")), long.Parse(Query(query, "after", "0")))
+                        : LogRing.Tail(int.Parse(Query(query, "n", "60")));
+                case "/events":
+                    return Events.Tail(int.Parse(Query(query, "n", "100")), long.Parse(Query(query, "after", "0")), Query(query, "kind", ""));
+                case "/damage":
+                    return Events.DamageTail(int.Parse(Query(query, "n", "50")));
+                case "/combat":
+                    return Combat.Stats(int.Parse(Query(query, "top", "12")));
+                case "/runs":
+                    return Json.Write(RunTracker.Current());
+                case "/path":
+                    return Movement.PathJson(int.Parse(Query(query, "n", "600")));
+                case "/floor":
+                    return FloorDump.Render();
+                case "/map":
+                    return FloorDump.AsciiView(int.Parse(Query(query, "r", "18")), ParseFloat(Query(query, "tx", "")), ParseFloat(Query(query, "ty", "")));
+                case "/rooms":
+                    return FloorDump.RoomsJson();
+                case "/mappath":
+                    {
+                        float mx = float.Parse(Query(query, "x", "0"), System.Globalization.CultureInfo.InvariantCulture);
+                        float my = float.Parse(Query(query, "y", "0"), System.Globalization.CultureInfo.InvariantCulture);
+                        return MainThreadPump.Run(delegate { return FloorDump.PathJson(mx, my); }, 6000);
+                    }
+                case "/mapscan":
+                    {
+                        int radius = int.Parse(Query(query, "r", "60"));
+                        MainThreadPump.Run(delegate
                         {
-                            float mx = float.Parse(Query(query, "x", "0"), System.Globalization.CultureInfo.InvariantCulture);
-                            float my = float.Parse(Query(query, "y", "0"), System.Globalization.CultureInfo.InvariantCulture);
-                            return MainThreadPump.Run(delegate { return FloorDump.PathJson(mx, my); }, 6000);
-                        }
-                    case "/mapscan":
-                        {
-                            int radius = int.Parse(Query(query, "r", "60"));
-                            MainThreadPump.Run(delegate
-                            {
-                                FloorDump.Rescan();
-                                return "ok";
-                            }, 3000);
-                            return Json.Write(FloorDump.Summary());
-                        }
-                    case "/probe":
-                        {
-                            float px = float.Parse(Query(query, "x", "0"), System.Globalization.CultureInfo.InvariantCulture);
-                            float py = float.Parse(Query(query, "y", "0"), System.Globalization.CultureInfo.InvariantCulture);
-                            return MainThreadPump.Run(delegate { return FloorDump.Probe(px, py); }, 6000);
-                        }
-                    case "/inventory":
-                        return Live.Inventory();
-                    case "/inventory_snapshot":
-                        return Filtered(new string[] { ".inv.", ".tablet.", "stat.", "tablets" });
-                    case "/combos":
-                        return Live.Combos();
-                    case "/statuses":
-                        return Live.Statuses();
-                    case "/stage":
-                        return MerchantOps.Stage(Query(query, "name", ""), Query(query, "to", ""));
+                            FloorDump.Rescan();
+                            return "ok";
+                        }, 3000);
+                        return Json.Write(FloorDump.Summary());
+                    }
+                case "/probe":
+                    {
+                        float px = float.Parse(Query(query, "x", "0"), System.Globalization.CultureInfo.InvariantCulture);
+                        float py = float.Parse(Query(query, "y", "0"), System.Globalization.CultureInfo.InvariantCulture);
+                        return MainThreadPump.Run(delegate { return FloorDump.Probe(px, py); }, 6000);
+                    }
+                case "/inventory":
+                    return Live.Inventory();
+                case "/inventory_snapshot":
+                    return Filtered(new string[] { ".inv.", ".tablet.", "stat.", "tablets" });
+                case "/combos":
+                    return Live.Combos();
+                case "/statuses":
+                    return Live.Statuses();
+                case "/stage":
+                    return MerchantOps.Stage(Query(query, "name", ""), Query(query, "to", ""));
 
-                    case "/god":
-                        return PlayerOps.GodSet(Query(query, "on", "1") != "0",
-                            Has(query, "invuln") ? Query(query, "invuln", "0") == "1" : (bool?)null);
-                    case "/reload":
+                case "/god":
+                    return PlayerOps.GodSet(Query(query, "on", "1") != "0",
+                        Has(query, "invuln") ? Query(query, "invuln", "0") == "1" : (bool?)null);
+                case "/reload":
                     return ModOps.Reload().ToString(Newtonsoft.Json.Formatting.None);
                 case "/mods":
-                        if (Query(query, "action", "") == "rescan")
-                            return ModOps.Rescan().ToString(Newtonsoft.Json.Formatting.None);
-                        return ModOps.List().ToString(Newtonsoft.Json.Formatting.None);
-                    case "/patches":
-                        return ModOps.Patches(Query(query, "q", ""), Query(query, "owner", ""), Int(query, "limit", 20)).ToString(Newtonsoft.Json.Formatting.None);
-                    case "/modoptions":
-                        if (Has(query, "set"))
-                        {
-                            return ModOptionsBridge.Set(Query(query, "mod", ModOptionsBridge.ModId), Query(query, "set", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
-                        }
-                        return ModOptionsBridge.Describe().ToString(Newtonsoft.Json.Formatting.None);
-                    case "/systems":
+                    if (Query(query, "action", "") == "rescan")
+                        return ModOps.Rescan().ToString(Newtonsoft.Json.Formatting.None);
+                    return ModOps.List().ToString(Newtonsoft.Json.Formatting.None);
+                case "/patches":
+                    return ModOps.Patches(Query(query, "q", ""), Query(query, "owner", ""), Int(query, "limit", 20)).ToString(Newtonsoft.Json.Formatting.None);
+                case "/modoptions":
+                    if (Has(query, "set"))
+                    {
+                        return ModOptionsBridge.Set(Query(query, "mod", ModOptionsBridge.ModId), Query(query, "set", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
+                    }
+                    return ModOptionsBridge.Describe().ToString(Newtonsoft.Json.Formatting.None);
+                case "/systems":
                     return SystemOps.Systems(Query(query, "kind", "quests"), Int(query, "limit", 400)).ToString(Newtonsoft.Json.Formatting.None);
                 case "/units":
                     return UnitOps.Dump(Query(query, "q", ""), Int(query, "limit", 500));
@@ -443,122 +443,122 @@ namespace SephiriaMonitor
                 case "/drops":
                     return DropOps.Drops(Query(query, "q", ""), Int(query, "limit", 200));
                 case "/weaponmap":
-                        return WeaponOps.Map(Query(query, "q", ""), Int(query, "limit", 200));
-                    case "/relics":
-                        return RelicOps.Relics(Query(query, "kind", "any"), Int(query, "level", 0), Query(query, "q", ""), Int(query, "limit", 400));
-                    case "/savekey":
-                        return SaveOps.Key(Query(query, "key", ""), Query(query, "scope", "meta"), Query(query, "set", ""), Query(query, "type", ""));
-                    case "/savedump":
-                        return SaveOps.Dump(Query(query, "prefix", ""), Query(query, "scope", "meta"), Int(query, "limit", 60));
+                    return WeaponOps.Map(Query(query, "q", ""), Int(query, "limit", 200));
+                case "/relics":
+                    return RelicOps.Relics(Query(query, "kind", "any"), Int(query, "level", 0), Query(query, "q", ""), Int(query, "limit", 400));
+                case "/savekey":
+                    return SaveOps.Key(Query(query, "key", ""), Query(query, "scope", "meta"), Query(query, "set", ""), Query(query, "type", ""));
+                case "/savedump":
+                    return SaveOps.Dump(Query(query, "prefix", ""), Query(query, "scope", "meta"), Int(query, "limit", 60));
                 case "/moddata":
-                        return ModOps.Data(Query(query, "kind", ""), Query(query, "q", ""), Int(query, "min", 900000), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
-                    case "/l10n":
-                        return ModOps.L10n(Query(query, "key", ""), Query(query, "prefix", ""), Query(query, "lang", ""), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
-                    case "/ui":
-                        return ModOps.Ui(Query(query, "action", "list"), Query(query, "name", ""), Query(query, "type", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
-                    case "/boss":
-                        return PlayerOps.Boss();
-                    case "/config":
-                        if (Has(query, "npcDamage"))
-                        {
-                            // npcDamage=0 means "do not record NPC-vs-NPC damage"
-                            Events.SkipNpcDamage = Query(query, "npcDamage", "1") == "0";
-                        }
-                        return Json.Write(Json.Obj()
-                            .Add("recordNpcDamage", !Events.SkipNpcDamage));
-                    case "/pinfo":
-                        return PlayerOps.Info();
-                    case "/engravings":
-                        return PlayerOps.Engravings();
-                    case "/cstat":
-                        return PlayerOps.CustomStat(Query(query, "name", ""));
-                    case "/grant":
-                        return PlayerOps.Grant(Int(query, "item", 0), Int(query, "count", 1));
-                    case "/grantmod":
-                        return Json.Write(ModOps.GrantTestItems(Query(query, "mod", "")));
-                    case "/heal":
-                        return PlayerOps.Heal(Num(query, "hp", 0f));
-                    case "/money":
-                        return PlayerOps.SetMoney(Int(query, "set", 0));
-                    case "/level":
-                        return PlayerOps.SetLevel(Int(query, "set", 1));
-                    case "/stat":
-                        return PlayerOps.SetStat(Query(query, "name", ""), Int(query, "value", 0));
-                    case "/merchants":
-                        return MerchantOps.Merchants();
-                    case "/floors":
-                        return MerchantOps.Floors();
-                    case "/floorgens":
-                        return FloorGenOps.Generators(Query(query, "q", ""), Query(query, "dir", ""), Int(query, "limit", 200));
-                    case "/hookfreq":
-                        return HookFreq.Handle(Query(query, "action", "dump"));
-                    case "/sample":
-                        return MainThreadPump.Run(delegate
-                        {
-                            return MerchantOps.Sample(Int(query, "n", 100), Int(query, "charms", 4), Int(query, "tablets", 2),
-                                Num(query, "ratio", 1.0f), Int(query, "seed", 0));
-                        }, 20000);
-                    case "/goto":
-                        return MerchantOps.Goto(Query(query, "floor", Query(query, "name", "")), Query(query, "to", ""), Query(query, "hidden", "0") == "1");
-                    case "/tp":
-                        return MerchantOps.Teleport(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""), Num(query, "ox", 1.6f), Num(query, "oy", 0f),
-                            Has(query, "x") ? Num(query, "x", 0f) : (float?)null, Has(query, "y") ? Num(query, "y", 0f) : (float?)null);
-                    case "/shop":
-                        return MerchantOps.OpenShop(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""));
+                    return ModOps.Data(Query(query, "kind", ""), Query(query, "q", ""), Int(query, "min", 900000), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
+                case "/l10n":
+                    return ModOps.L10n(Query(query, "key", ""), Query(query, "prefix", ""), Query(query, "lang", ""), Int(query, "limit", 40)).ToString(Newtonsoft.Json.Formatting.None);
+                case "/ui":
+                    return ModOps.Ui(Query(query, "action", "list"), Query(query, "name", ""), Query(query, "type", ""), Query(query, "value", "")).ToString(Newtonsoft.Json.Formatting.None);
+                case "/boss":
+                    return PlayerOps.Boss();
+                case "/config":
+                    if (Has(query, "npcDamage"))
+                    {
+                        // npcDamage=0 means "do not record NPC-vs-NPC damage"
+                        Events.SkipNpcDamage = Query(query, "npcDamage", "1") == "0";
+                    }
+                    return Json.Write(Json.Obj()
+                        .Add("recordNpcDamage", !Events.SkipNpcDamage));
+                case "/pinfo":
+                    return PlayerOps.Info();
+                case "/engravings":
+                    return PlayerOps.Engravings();
+                case "/cstat":
+                    return PlayerOps.CustomStat(Query(query, "name", ""));
+                case "/grant":
+                    return PlayerOps.Grant(Int(query, "item", 0), Int(query, "count", 1));
+                case "/grantmod":
+                    return Json.Write(ModOps.GrantTestItems(Query(query, "mod", "")));
+                case "/heal":
+                    return PlayerOps.Heal(Num(query, "hp", 0f));
+                case "/money":
+                    return PlayerOps.SetMoney(Int(query, "set", 0));
+                case "/level":
+                    return PlayerOps.SetLevel(Int(query, "set", 1));
+                case "/stat":
+                    return PlayerOps.SetStat(Query(query, "name", ""), Int(query, "value", 0));
+                case "/merchants":
+                    return MerchantOps.Merchants();
+                case "/floors":
+                    return MerchantOps.Floors();
+                case "/floorgens":
+                    return FloorGenOps.Generators(Query(query, "q", ""), Query(query, "dir", ""), Int(query, "limit", 200));
+                case "/hookfreq":
+                    return HookFreq.Handle(Query(query, "action", "dump"));
+                case "/sample":
+                    return MainThreadPump.Run(delegate
+                    {
+                        return MerchantOps.Sample(Int(query, "n", 100), Int(query, "charms", 4), Int(query, "tablets", 2),
+                            Num(query, "ratio", 1.0f), Int(query, "seed", 0));
+                    }, 20000);
+                case "/goto":
+                    return MerchantOps.Goto(Query(query, "floor", Query(query, "name", "")), Query(query, "to", ""), Query(query, "hidden", "0") == "1");
+                case "/tp":
+                    return MerchantOps.Teleport(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""), Num(query, "ox", 1.6f), Num(query, "oy", 0f),
+                        Has(query, "x") ? Num(query, "x", 0f) : (float?)null, Has(query, "y") ? Num(query, "y", 0f) : (float?)null);
+                case "/shop":
+                    return MerchantOps.OpenShop(Query(query, "index", ""), Query(query, "name", ""), Query(query, "to", ""));
 
-                    case "/spots":
-                        return MainThreadPump.Run(delegate
-                        {
-                            return WorldOps.Spots(Query(query, "type", ""), Query(query, "name", ""), Int(query, "max", 30),
-                                Query(query, "all", "0") == "1", Num(query, "near", 0f));
-                        }, 8000);
-                    case "/use":
-                        return MainThreadPump.Run(delegate
-                        {
-                            return WorldOps.Use(Query(query, "index", ""), Query(query, "name", ""), Query(query, "type", ""),
-                                Query(query, "tp", "1") != "0", Num(query, "ox", 1.2f), Num(query, "oy", 0f));
-                        }, 8000);
-                    case "/gridrooms":
-                        return MainThreadPump.Run(delegate { return WorldOps.Rooms(Query(query, "floor", "")); }, 8000);
-                    case "/jump":
-                        return MainThreadPump.Run(delegate
-                        {
-                            return WorldOps.Jump(Query(query, "floor", ""), Query(query, "room", ""), Query(query, "index", ""), Num(query, "ox", 0f), Num(query, "oy", 0f));
-                        }, 8000);
-                    case "/progress":
-                        return Filtered(new string[] { "run.floor", "run.hard", "run.seed", "run.env" });
-                    case "/screenshot":
-                        return Screenshot();
-                    case "/snapshot":
-                        return Snapshot.Capture(Query(query, "reason", "bridge"));
-                    case "/session":
-                        return Json.Write(Json.Obj().Add("root", Session.Root).Add("events", Session.EventCount).Add("requests", BridgeServer.Requests).Add("floorDumps", FloorDump.Count));
-                    case "/arm":
-                        {
-                            int minutes = int.Parse(Query(query, "minutes", "120"));
-                            int slot = int.Parse(Query(query, "slot", "0"));
-                            MonitorConfig.AutoEnter = true;          // runtime only, never written to the cfg
-                            TitleControl.ResetAutoOnce();
-                            string armResult = AutoEnterGate.Arm(minutes, slot);
-                            return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", true).Add("slot", slot > 0 ? slot : MonitorConfig.AutoEnterSlot)
-                                .Add("marker", Json.Obj().Add("armed", AutoEnterGate.IsArmed())).Add("detail", armResult));
-                        }
-                    case "/disarm":
-                        MonitorConfig.AutoEnter = false;
-                        AutoEnterGate.Delete();
-                        return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", false).Add("armed", AutoEnterGate.IsArmed()));
-                    case "/title":
-                        return Json.Write(TitleControl.TitleInfo());
-                    case "/saves":
-                        return Json.Write(TitleControl.Slots());
-                    case "/enter":
-                        return Json.Write(TitleControl.Enter(Query(query, "slot", ""), Query(query, "create", "0") == "1", Query(query, "name", ""), Query(query, "skip", "1") != "0"));
-                    case "/prepnew":
-                        return Json.Write(TitleControl.PrepareNew(Query(query, "slot", ""), Query(query, "name", "Tester"), Query(query, "fresh", "0") == "1"));
-                    case "/enterstatus":
-                        return Json.Write(Json.Obj().Add("scene", SceneTracker.Current).Add("pending", TitleControl.Pending()));
-                    case "/statefull":
-                        return StateFull();
+                case "/spots":
+                    return MainThreadPump.Run(delegate
+                    {
+                        return WorldOps.Spots(Query(query, "type", ""), Query(query, "name", ""), Int(query, "max", 30),
+                            Query(query, "all", "0") == "1", Num(query, "near", 0f));
+                    }, 8000);
+                case "/use":
+                    return MainThreadPump.Run(delegate
+                    {
+                        return WorldOps.Use(Query(query, "index", ""), Query(query, "name", ""), Query(query, "type", ""),
+                            Query(query, "tp", "1") != "0", Num(query, "ox", 1.2f), Num(query, "oy", 0f));
+                    }, 8000);
+                case "/gridrooms":
+                    return MainThreadPump.Run(delegate { return WorldOps.Rooms(Query(query, "floor", "")); }, 8000);
+                case "/jump":
+                    return MainThreadPump.Run(delegate
+                    {
+                        return WorldOps.Jump(Query(query, "floor", ""), Query(query, "room", ""), Query(query, "index", ""), Num(query, "ox", 0f), Num(query, "oy", 0f));
+                    }, 8000);
+                case "/progress":
+                    return Filtered(new string[] { "run.floor", "run.hard", "run.seed", "run.env" });
+                case "/screenshot":
+                    return Screenshot();
+                case "/snapshot":
+                    return Snapshot.Capture(Query(query, "reason", "bridge"));
+                case "/session":
+                    return Json.Write(Json.Obj().Add("root", Session.Root).Add("events", Session.EventCount).Add("requests", BridgeServer.Requests).Add("floorDumps", FloorDump.Count));
+                case "/arm":
+                    {
+                        int minutes = int.Parse(Query(query, "minutes", "120"));
+                        int slot = int.Parse(Query(query, "slot", "0"));
+                        MonitorConfig.AutoEnter = true;          // runtime only, never written to the cfg
+                        TitleControl.ResetAutoOnce();
+                        string armResult = AutoEnterGate.Arm(minutes, slot);
+                        return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", true).Add("slot", slot > 0 ? slot : MonitorConfig.AutoEnterSlot)
+                            .Add("marker", Json.Obj().Add("armed", AutoEnterGate.IsArmed())).Add("detail", armResult));
+                    }
+                case "/disarm":
+                    MonitorConfig.AutoEnter = false;
+                    AutoEnterGate.Delete();
+                    return Json.Write(Json.Obj().Add("ok", true).Add("autoEnter", false).Add("armed", AutoEnterGate.IsArmed()));
+                case "/title":
+                    return Json.Write(TitleControl.TitleInfo());
+                case "/saves":
+                    return Json.Write(TitleControl.Slots());
+                case "/enter":
+                    return Json.Write(TitleControl.Enter(Query(query, "slot", ""), Query(query, "create", "0") == "1", Query(query, "name", ""), Query(query, "skip", "1") != "0"));
+                case "/prepnew":
+                    return Json.Write(TitleControl.PrepareNew(Query(query, "slot", ""), Query(query, "name", "Tester"), Query(query, "fresh", "0") == "1"));
+                case "/enterstatus":
+                    return Json.Write(Json.Obj().Add("scene", SceneTracker.Current).Add("pending", TitleControl.Pending()));
+                case "/statefull":
+                    return StateFull();
                 default:
                     return Json.Write(Json.Obj().Add("error", "unknown path").Add("path", path));
             }
@@ -795,7 +795,7 @@ namespace SephiriaMonitor
             string path = ScreenshotService.Capture(4000);
             return Json.Write(Json.Obj().Add("ok", path != null).Add("path", path).Add("scene", SceneTracker.Current));
         }
-private static float? ParseFloat(string text)
+        private static float? ParseFloat(string text)
         {
             float value;
             if (!string.IsNullOrEmpty(text) && float.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value))

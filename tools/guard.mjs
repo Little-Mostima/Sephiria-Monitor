@@ -187,6 +187,39 @@ function walk(dir, filter, out = []) {
   }
 }
 
+// ---------- 6d. C# formatting, only when C# changed ----------
+// dotnet format takes ~4 s, so it runs when the working tree has .cs edits - which is exactly when a
+// commit is about to happen - and is skipped otherwise. --full forces it.
+{
+  const full = process.argv.includes('--full');
+  const dirty = spawnSync('git', ['-C', REPO, 'status', '--porcelain', '--', '*.cs'], { encoding: 'utf8' });
+  const changed = ((dirty.stdout || '') + (dirty.stderr || '')).trim().length > 0;
+  if (!changed && !full) add('format', 'ok', 'no C# changes, skipped');
+  else {
+    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'format.mjs')], { encoding: 'utf8' });
+    const out = ((res.stdout || '') + (res.stderr || '')).trim();
+    add('format', res.status === 0 ? 'ok' : 'fail',
+      res.status === 0 ? out.split('\n')[0] : out.split('\n').slice(0, 4).join(' | '));
+  }
+}
+
+// ---------- 6e. the commit gate is actually installed ----------
+// A gate nobody runs is documentation. core.hooksPath is per-clone and can silently be unset, so the
+// enforcement itself is checked - otherwise the next clone is back to trusting good intentions.
+{
+  const outer = path.resolve(REPO, '..', '..');
+  const bad = [];
+  for (const dir of [outer, REPO]) {
+    const hp = spawnSync('git', ['-C', dir, 'config', 'core.hooksPath'], { encoding: 'utf8' });
+    const val = (hp.stdout || '').trim();
+    const file = path.join(dir, '.githooks', 'pre-commit');
+    if (val !== '.githooks') bad.push(path.basename(dir) + ': hooksPath=' + (val || 'unset'));
+    else if (!fs.existsSync(file)) bad.push(path.basename(dir) + ': .githooks/pre-commit missing');
+  }
+  add('precommit', bad.length ? 'fail' : 'ok',
+    bad.length ? brief(bad, 4) + ' - run node tools/install-hooks.mjs' : 'both repos gated by .githooks/pre-commit');
+}
+
 // ---------- 7. the enter-world contract (opt-in: needs the game) ----------
 // One NetworkHost call, phase ready, no dialog fallback. If someone reintroduces a retry loop or
 // goes back to clicking the name prompt, hostCalls stops being 1 and this fails.
