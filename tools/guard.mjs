@@ -187,6 +187,34 @@ function walk(dir, filter, out = []) {
   }
 }
 
+// ---------- 6c2. every doc is in the catalog ----------
+// A new .md that nobody rebuilt the catalog for is invisible to q.py cat and to the index - it exists
+// on disk and nowhere else. Cheap to check, and it is the step agents skip most often.
+{
+  const tsv = path.join(DOCS, 'CATALOG.tsv');
+  if (!fs.existsSync(tsv)) add('catalog', 'fail', 'CATALOG.tsv missing - run _re/index/build-catalog.py');
+  else {
+    const listed = new Set();
+    for (const line of fs.readFileSync(tsv, 'utf8').split('\n').slice(1)) {
+      const cols = line.split('\t');
+      if (cols.length > 4) listed.add(cols[4].replace(/\\/g, '/'));
+    }
+    // Same skip list as build-catalog.py: index/ is generated, docs/ and _sources/ are not catalogued.
+    const docs = walk(DOCS, (f) => f.endsWith('.md'))
+      .filter((f) => !f.includes(path.join(DOCS, 'official')) && !f.includes(path.join(DOCS, 'research')))
+      .filter((f) => path.basename(f) !== 'CATALOG.md')
+      .filter((f) => {
+        const parts = path.relative(DOCS, f).split(path.sep);
+        return parts[0] !== 'index' && !parts.includes('docs') && !parts.includes('_sources');
+      });
+    const missing = docs
+      .map((f) => path.relative(path.resolve(DOCS, '..'), f).replace(/\\/g, '/'))
+      .filter((rel) => !listed.has(rel));
+    add('catalog', missing.length ? 'fail' : 'ok',
+      missing.length ? brief(missing, 5) + ' - run _re/index/build-catalog.py' : docs.length + ' doc(s), all in CATALOG.tsv');
+  }
+}
+
 // ---------- 6d. C# formatting, only when C# changed ----------
 // dotnet format takes ~4 s, so it runs when the working tree has .cs edits - which is exactly when a
 // commit is about to happen - and is skipped otherwise. --full forces it.
