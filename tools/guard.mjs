@@ -1,0 +1,185 @@
+#!/usr/bin/env node
+// Structural guards: the invariants whose absence made the same bug get re-fixed in a different
+// place every time. Static by default (no game, ~2 s); --world adds the live enter-world contract.
+//
+//   node tools/guard.mjs            # static guards
+//   node tools/guard.mjs --world    # + launch the game and assert the enter-world contract
+//   node tools/guard.mjs --json
+//
+// Exit code 1 when any guard fails. Warnings do not fail.
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+import { REPO, DOCS, PORT, PYTHON } from './config.mjs';
+import { killGameAndWait } from './runner/lib.mjs';
+
+const asJson = process.argv.includes('--json');
+const withWorld = process.argv.includes('--world');
+const rows = [];
+const add = (name, state, detail) => rows.push({ name, state, detail });
+const rel = (p) => path.relative(REPO, p).replace(/\\/g, '/');
+const brief = (list, n) => list.slice(0, n).join('; ') + (list.length > n ? ' (+' + (list.length - n) + ')' : '');
+
+function walk(dir, filter, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name === '.git' || e.name === 'obj' || e.name === 'bin') continue;
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) walk(p, filter, out);
+    else if (filter(p)) out.push(p);
+  }
+  return out;
+}
+
+// ---------- 1. no script may point at a path that no longer exists ----------
+// The 2026-11-04 restructure moved _re/assets -> _re/{volumes,dump}. A script that keeps the old
+// literal still looks fine until someone runs it, which is how a fix lands in the wrong file.
+{
+  const dead = ['_re\\assets', '_re/assets', '_re\\modding', '_re/modding', 'monitor-live.ps1', '_work\\survey', '_work/survey', '_work\\_dump'];
+  const scripts = [
+    ...walk(path.join(DOCS, 'index'), (p) => /\.(py|mjs|ps1)$/.test(p)),
+    ...walk(path.join(DOCS, 'MODDEV', 'tools'), (p) => /\.(py|mjs|ps1)$/.test(p)),
+    ...walk(path.join(REPO, 'tools'), (p) => /\.(mjs|ps1)$/.test(p)),
+  ];
+  const hits = [];
+  for (const f of scripts) {
+    if (path.basename(f) === 'guard.mjs') continue; // this file lists the dead paths on purpose
+    const text = fs.readFileSync(f, 'utf8');
+    for (const needle of dead) if (text.includes(needle)) hits.push(rel(f) + ' -> ' + needle);
+  }
+  add('paths', hits.length ? 'fail' : 'ok', hits.length ? brief(hits, 8) : scripts.length + ' script(s), no dead path');
+}
+
+// ---------- 2. no doc may reference a file that no longer exists ----------
+{
+  const dead = ['HANDOFF.md', 'monitor-live.ps1', '_re/assets', '_re\\assets', '_re/modding', '_re\\modding',
+    'build-customstats.py', 'build-floor-report.py', 'build-input-bindings.py', 'build-miniscript.py',
+    'build-panels.py', 'build-quests.py', 'build-savekeys.py', 'build-scene-inventory.py', 'build-statuses.py',
+    'build-systems.py', 'build-xml-schema.py', 'gen-calc-volume.py', 'gen-enemy-volume.py', 'gen-map-volume.py',
+    'gen-relic-volume.py', 'gen-status-volume.py', 'gen-systems-volumes.py', 'gen-weapon-volume.py',
+    'merge-indices.py', 'passage-check.py', 'room-purpose.py', 'analyze-survey.py', 'survey.py'];
+  const docs = [
+    ...walk(DOCS, (p) => p.endsWith('.md')),
+    path.join(REPO, '..', 'START_HERE.md'),
+    path.join(REPO, 'README.md'),
+  ].filter((p) => fs.existsSync(p) && !p.includes(path.join(DOCS, 'research')));
+  // A line that says the file is gone ("已删除"/"已退役"/"deleted") is a record, not a stale pointer.
+  const gone = /删除|退役|deleted|retired/i;
+  const hits = [];
+  for (const f of docs) {
+    const lines = fs.readFileSync(f, 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (gone.test(lines[i])) continue;
+      for (const needle of dead) if (lines[i].includes(needle)) hits.push(rel(f) + ':' + (i + 1) + ' -> ' + needle);
+    }
+  }
+  add('docs-dead', hits.length ? 'fail' : 'ok', hits.length ? brief(hits, 8) : docs.length + ' doc(s), no dead reference');
+}
+
+// ---------- 3. every relative markdown link resolves ----------
+{
+  // official/ is a verbatim copy of the game's upstream docs (its relative links point into that repo),
+  // research/ holds raw notes - neither is ours to keep link-clean.
+  const docs = walk(DOCS, (p) => p.endsWith('.md'))
+    .filter((p) => !p.includes(path.join(DOCS, 'official')) && !p.includes(path.join(DOCS, 'research')))
+    .concat([path.join(REPO, '..', '..', 'START_HERE.md')]).filter((p) => fs.existsSync(p));
+  const bad = [];
+  for (const f of docs) {
+    const text = fs.readFileSync(f, 'utf8');
+    for (const m of text.matchAll(/\[[^\]]*\]\(([^)#]+?)\)/g)) {
+      const t = m[1].trim();
+      if (!t || t.startsWith('http') || t.startsWith('mailto:') || t.startsWith('#')) continue;
+      const target = path.resolve(path.dirname(f), decodeURIComponent(t.replace(/%20/g, ' ')));
+      if (!fs.existsSync(target)) bad.push(rel(f) + ' -> ' + t);
+    }
+  }
+  add('links', bad.length ? 'fail' : 'ok', bad.length ? brief(bad, 8) : docs.length + ' doc(s), all links resolve');
+}
+
+// ---------- 4. hooks.json is one generated artifact, not two hand-edited copies ----------
+{
+  const a = path.join(DOCS, 'MODDEV', 'hooks.json');
+  const b = path.join(REPO, 'SephiriaMonitor', 'hooks.json');
+  if (!fs.existsSync(a) || !fs.existsSync(b)) add('hooks', 'fail', 'hooks.json missing in _re or repo');
+  else {
+    const same = fs.readFileSync(a).equals(fs.readFileSync(b));
+    add('hooks', same ? 'ok' : 'fail', same ? 'both copies byte-identical' : 'copies differ - run _re/index/gen-hooks.py (single source)');
+  }
+}
+
+// ---------- 5. no stale version/count in docs ----------
+{
+  const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'doccheck.mjs')], { encoding: 'utf8' });
+  const out = ((res.stdout || '') + (res.stderr || '')).trim();
+  add('numbers', res.status === 0 ? 'ok' : 'fail', res.status === 0 ? 'no stale version/count' : out.split('\n').slice(-6).join(' | '));
+}
+
+// ---------- 5b. the knowledge base still describes the installed game ----------
+// A game patch silently invalidates every line number and every count in _re/. One hash check
+// turns "why is this wrong" into "the game moved".
+{
+  const script = path.join(DOCS, 'index', 'check-baseline.py');
+  if (!fs.existsSync(script)) add('baseline', 'warn', 'check-baseline.py missing');
+  else {
+    const res = spawnSync(PYTHON, [script], { encoding: 'utf8' });
+    if (res.status === 0) add('baseline', 'ok', 'installed game matches _re/GAME-BASELINE.json');
+    else if (res.status === 1) add('baseline', 'fail', 'game binaries changed - re-decompile and re-verify _re/ (check-baseline.py --write after)');
+    else add('baseline', 'warn', 'baseline missing or game not found (set SEPHIRIA_GAME_DIR)');
+  }
+}
+
+// ---------- 6. every script still parses ----------
+{
+  const mjs = walk(path.join(REPO, 'tools'), (p) => p.endsWith('.mjs'));
+  const bad = [];
+  for (const f of mjs) {
+    const res = spawnSync(process.execPath, ['--check', f], { encoding: 'utf8' });
+    if (res.status !== 0) bad.push(rel(f));
+  }
+  const py = walk(path.join(DOCS, 'index'), (p) => p.endsWith('.py'));
+  const python = PYTHON;
+  const pyBad = [];
+  for (const f of py) {
+    const res = spawnSync(python, ['-m', 'py_compile', f], { encoding: 'utf8' });
+    if (res.status !== 0) pyBad.push(rel(f));
+  }
+  const detail = [];
+  if (bad.length) detail.push('mjs: ' + bad.join(', '));
+  if (pyBad.length) detail.push('py: ' + pyBad.join(', '));
+  add('syntax', detail.length ? 'fail' : 'ok', detail.length ? detail.join('; ') : mjs.length + ' mjs + ' + py.length + ' py parse');
+}
+
+// ---------- 7. the enter-world contract (opt-in: needs the game) ----------
+// One NetworkHost call, phase ready, no dialog fallback. If someone reintroduces a retry loop or
+// goes back to clicking the name prompt, hostCalls stops being 1 and this fails.
+if (withWorld) {
+  const slot = '1';
+  const boot = spawnSync(process.execPath, [path.join(REPO, 'tools', 'launch-bg.mjs'), '--world', '--slot', slot], { encoding: 'utf8' });
+  const log = ((boot.stdout || '') + (boot.stderr || '')).trim();
+  let status = null;
+  try {
+    const res = await fetch('http://127.0.0.1:' + PORT + '/enterstatus', { signal: AbortSignal.timeout(3000) });
+    status = await res.json();
+  } catch { /* bridge already gone */ }
+  const p = status && status.pending;
+  const problems = [];
+  if (boot.status !== 0) problems.push('launch-bg exited ' + boot.status);
+  if (!p) problems.push('no /enterstatus snapshot');
+  else {
+    if (p.phase !== 'ready') problems.push('phase=' + p.phase);
+    if (p.hostCalls !== 1) problems.push('hostCalls=' + p.hostCalls + ' (must be exactly 1)');
+    if (p.state !== 'ok') problems.push('state=' + p.state);
+  }
+  try { killGameAndWait(); } catch { /* best effort */ }
+  add('world', problems.length ? 'fail' : 'ok', problems.length ? problems.join('; ') + ' | ' + log.split('\n').slice(-3).join(' | ') : 'slot ' + slot + ': hostCalls=1 phase=ready scene=MainWorld');
+}
+
+const failed = rows.filter((r) => r.state === 'fail');
+if (asJson) {
+  console.log(JSON.stringify({ ok: failed.length === 0, checks: rows }, null, 2));
+} else {
+  for (const r of rows) console.log((r.state === 'ok' ? 'ok  ' : r.state === 'warn' ? 'warn' : 'FAIL') + '  ' + r.name.padEnd(10) + ' ' + r.detail);
+  console.log(failed.length ? '\nGUARD: ' + failed.length + ' broken invariant(s)' : '\nGUARD OK');
+}
+process.exit(failed.length ? 1 : 0);

@@ -4,11 +4,12 @@
 //
 //   node tools/do.mjs build <mod> [--deploy]   build one mod (shared props, version from metadata.json)
 //   node tools/do.mjs test [<mod>|--all] [--skip-tests|--skip-build]   preflight
-//   node tools/do.mjs fast                     preflight fast tier only (no cold starts)
+//   node tools/do.mjs fast                     project guards + preflight fast tier (no cold starts)
 //   node tools/do.mjs pack <mod>               package + validate the zip
 //   node tools/do.mjs release <mod> [--stage]  release checklist (+ stage into WorkshopLocal)
 //   node tools/do.mjs compat [--static|--pairs|--all]   mod-to-mod compatibility
 //   node tools/do.mjs docs                     doc rot check
+//   node tools/do.mjs guard [--world]          structural guards (dead paths, links, hooks, syntax; --world adds the enter-world contract)
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
 //   node tools/do.mjs qc [<mod>|--all]         content quality checks
@@ -39,11 +40,20 @@ const flag = (a, name, fallback = null) => {
 const TASKS = {
   build: (a) => run('build-mod.mjs', a),
   test: (a) => run('preflight.mjs', a),
-  fast: (a) => run('preflight.mjs', ['--all', '--tier', 'fast', ...a]),
+  // 'fast' used to be preflight alone, which prints "PREFLIGHT OK - 0 mod(s)" when work/ is empty -
+  // a green light for a check that ran nothing. Project guards run first, then the mod gate.
+  fast: (a) => {
+    const g = spawnSync(process.execPath, [path.join(REPO, 'tools', 'guard.mjs')], { stdio: 'inherit' });
+    const p = spawnSync(process.execPath, [path.join(REPO, 'tools', 'preflight.mjs'), '--all', '--tier', 'fast', ...a], { stdio: 'inherit' });
+    const ok = (g.status ?? 1) === 0 && (p.status ?? 1) === 0;
+    console.log(ok ? '\nFAST OK' : '\nFAST FAILED');
+    process.exit(ok ? 0 : 1);
+  },
   pack: (a) => run('pack-workshop.mjs', a),
   release: (a) => run('release.mjs', a),
   compat: (a) => run('compat.mjs', a),
   docs: (a) => run('doccheck.mjs', a),
+  guard: (a) => run('guard.mjs', a),
   doctor: (a) => run('doctor.mjs', a),
   new: (a) => run('new-mod.mjs', a),
   qc: (a) => run('qc-check.mjs', a),

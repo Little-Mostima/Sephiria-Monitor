@@ -3,9 +3,9 @@
 // 拿源码/索引里的真实数字去校验文档里写死的版本号与计数。
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO } from './runner/lib.mjs';
+import { REPO, DOCS } from './runner/lib.mjs';
 
-const DOCS_REPO = path.resolve(REPO, '..', '..');   // D:\AscensionMod
+const DOCS_REPO = path.resolve(DOCS, '..');   // D:\AscensionMod (single source: config.mjs DOCS)
 const JSON_OUT = process.argv.includes('--json');
 
 function walk(dir, out = []) {
