@@ -194,6 +194,13 @@ namespace SephiriaMonitor
                 txCell = Mathf.FloorToInt(tx.Value) - gx0;
                 tyCell = Mathf.FloorToInt(ty.Value) - gy0;
             }
+            // Town floors have a small grid far from the player, so the window can invert (x0 > x1) and
+            // StringBuilder would get a negative capacity. Same answer as PathJson: the player is off-grid.
+            if (px < 0 || py < 0 || px >= gw || py >= gh)
+            {
+                return Json.Write(Json.Obj().Add("error", "player outside grid").Add("player", new float[] { pp[0], pp[1] })
+                    .Add("grid", new int[] { gx0, gy0, gw, gh }));
+            }
             int x0 = Mathf.Max(0, px - r);
             int x1 = Mathf.Min(gw - 1, px + r);
             int y0 = Mathf.Max(0, py - r);
