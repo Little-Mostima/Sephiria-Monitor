@@ -104,7 +104,11 @@ function walk(dir, filter, out = []) {
 {
   const docs = walk(DOCS, (p) => p.endsWith('.md'))
     .filter((p) => !p.includes(path.join(DOCS, 'official')) && !p.includes(path.join(DOCS, 'research')))
-    .concat([path.join(REPO, '..', '..', 'START_HERE.md'), path.join(REPO, '..', '..', 'AGENTS.md')])
+    .concat([
+      path.join(REPO, '..', '..', 'START_HERE.md'),
+      path.join(REPO, '..', '..', 'AGENTS.md'),
+      path.join(REPO, 'README.md'),
+    ])
     .filter((p) => fs.existsSync(p));
   const doSrc = fs.readFileSync(path.join(REPO, 'tools', 'do.mjs'), 'utf8');
   const tasks = new Set([...doSrc.matchAll(/^ {2}([a-z][a-z0-9]*):/gm)].map((m) => m[1]));
@@ -126,6 +130,25 @@ function walk(dir, filter, out = []) {
     }
   }
   add('toolrefs', bad.length ? 'fail' : 'ok', bad.length ? brief(bad, 8) : docs.length + ' doc(s), every named tool exists');
+}
+
+// ---------- 3c. no prose about things that are gone ----------
+// "（原生成器已删除，本卷手工维护）" costs a reader bytes and tells them nothing they can act on.
+// The fact that something is gone belongs in _audit/ manifests, not in every doc that used to name it.
+{
+  const DEAD = /已删除|已退役|已下线|原生成器|曾经存在|本功能已移除/;
+  const docs = walk(DOCS, (p) => p.endsWith('.md'))
+    .filter((p) => !p.includes(path.join(DOCS, 'official')) && !p.includes(path.join(DOCS, 'research')))
+    .concat([path.join(REPO, '..', '..', 'START_HERE.md'), path.join(REPO, '..', '..', 'AGENTS.md'), path.join(REPO, 'README.md')])
+    .filter((p) => fs.existsSync(p));
+  const bad = [];
+  for (const f of docs) {
+    fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      if (DEAD.test(line)) bad.push(rel(f) + ':' + (i + 1) + ' ' + line.trim().slice(0, 40));
+    });
+  }
+  add('phrasing', bad.length ? 'fail' : 'ok',
+    bad.length ? brief(bad, 5) + ' - say what is true now, keep the history in _audit/' : docs.length + ' doc(s), no prose about removed things');
 }
 
 // ---------- 4. hooks.json is one generated artifact, not two hand-edited copies ----------

@@ -62,13 +62,13 @@ tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则
 tools/build-mod.mjs       node build-mod.mjs <mod> [--deploy] → 编译 + 复制 metadata + 可选装进 AddOns
 tools/dev.mjs             node dev.mjs <mod> [--apply] → 内循环：数据改动热重载，C# 改动才重启
 tools/doccheck.mjs        node doccheck.mjs → 文档里的版本号/篇数/套件数是否与真值一致
-tools/guard.mjs           node guard.mjs [--world] → 结构守护：死路径 / 死引用 / 断链 / hooks 双份 / 文档数字 / 游戏基线 / 语法 / 编码 / 插件编译 / 目录覆盖 / C# 格式 / 钩子已装；--world 加进档契约（hostCalls=1）
+tools/guard.mjs           node guard.mjs [--world] → 结构守护：死路径 / 死引用 / 断链 / 文档点名的工具与任务必须存在 / 不写已移除的东西 / hooks 双份 / 文档数字 / 游戏基线 / 语法 / 编码 / 插件编译 / 目录覆盖 / C# 格式 / 钩子已装；--world 加进档契约（hostCalls=1）
 tools/plugin.mjs          node plugin.mjs [--no-deploy] → 编译插件（警告即错误）并部署 dll + hooks.json 到游戏
 tools/encoding.mjs        node encoding.mjs [--fix|--read <file>] → 文本编码：UTF-8 无 BOM；--read 自动判编码打印
 tools/format.mjs          node format.mjs [--fix] → C# 格式检查（dotnet format 是唯一标准）
 tools/install-hooks.mjs   node install-hooks.mjs [--check] → 给两个仓库装 pre-commit 门禁（core.hooksPath=.githooks）
 tools/compat.mjs          node compat.mjs --static|--pairs|--all → 模组间冲突扫描与共存回归
-tools/do.mjs              node do.mjs build|test|fast|gate|commit|fix|format|hooks|pack|release|compat|docs|guard|plugin|encoding|doctor|new|clean
+tools/do.mjs              统一入口：build|test|fast|gate|commit|push|fix|format|hooks|pack|ship|release|compat|docs|guard|plugin|encoding|doctor|new|qc|selfcheck|session|world|clean
 tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
 ```
 
@@ -318,6 +318,7 @@ dotnet build SephiriaMonitor -c Release
 - 提交用 `node tools/do.mjs commit -m "..."`：先过门禁再 add+commit，省掉「忘了跑」这一步。
 - 不 `git add .`，只 add 自己改的路径。
 - 提交身份：`Little-Mostima <350866909+Little-Mostima@users.noreply.github.com>`。
+- 提交信息只写**现在是什么**：一句话说清做了什么、为什么。留在机器上的东西不值得占字节，指向旧实现的句子、清理记录、去向说明都不写，它们只在 `_audit/` 的清单里。数字别写死（`guard` 的 phrasing 与 doccheck 会拦）。
 
 ### 11.2 推前检查
 
@@ -326,8 +327,11 @@ dotnet build SephiriaMonitor -c Release
 ### 11.3 推送
 
 ```powershell
-git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin main
+node tools\do.mjs push --dry-run   # 先看：几个 commit、动了哪些文件
+node tools\do.mjs push             # 同上，过门禁后真推（默认走 127.0.0.1:7890，可用 --proxy 换）
 ```
+
+外层仓库（`D:\AscensionMod`）没有自己的 tools，直接 `git -C D:\AscensionMod push origin main`，推前同样先跑一次 `do.mjs gate`。
 
 - token 不落盘：`git-credential-manager get` 取 `password=` 行。
 - GitHub API 走 `Invoke-RestMethod -Proxy`；传资产用 `curl.exe --data-binary @<文件> .../releases/<id>/assets?name=<文件名>`。

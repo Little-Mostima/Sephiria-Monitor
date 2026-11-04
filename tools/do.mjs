@@ -15,6 +15,7 @@
 //   node tools/do.mjs q <api|sig|grep|item|hook|doc|table|src|cat|live> ...   offline index query (q.py, UTF-8 output)
 //   node tools/do.mjs gate                     the commit gate (guard + doccheck); the pre-commit hook runs this
 //   node tools/do.mjs commit -m "msg"          gate, then stage everything and commit
+//   node tools/do.mjs push [--dry-run] [--proxy URL]   gate, show what would leave, then push origin main
 //   node tools/do.mjs fix                      mechanical repairs (encoding --fix, catalog, links)
 //   node tools/do.mjs format [--fix]           C# formatting check (dotnet format is the definition)
 //   node tools/do.mjs hooks [--check]          install / verify the pre-commit gate in both repos
@@ -91,6 +92,37 @@ const TASKS = {
     spawnSync('git', ['-C', REPO, 'add', '-A'], { stdio: 'inherit' });
     const c = spawnSync('git', ['-C', REPO, 'commit', '-m', msg], { stdio: 'inherit' });
     process.exit(c.status ?? 1);
+  },
+  // Pushing is the one step that is hard to take back, so it never happens as a side effect of
+  // something else: the task runs the gate, prints exactly what would leave the machine, then pushes.
+  push: (a) => {
+    const dry = a.includes('--dry-run');
+    const proxy = flag(a, '--proxy') || 'http://127.0.0.1:7890';
+    const g = spawnSync(process.execPath, [path.join(REPO, 'tools', 'guard.mjs')], { stdio: 'inherit' });
+    if ((g.status ?? 1) !== 0) {
+      console.error('\npush: gate failed, nothing pushed');
+      process.exit(1);
+    }
+    const git = (args) => spawnSync('git', ['-C', REPO, ...args], { encoding: 'utf8' });
+    const ahead = (git(['log', '--oneline', 'origin/main..HEAD']).stdout || '').trim();
+    const stat = (git(['diff', '--stat', 'origin/main..HEAD']).stdout || '').trim().split('\n').pop() || '';
+    const n = ahead ? ahead.split('\n').length : 0;
+    console.log(`\nPUSH  ${n} commit(s) ahead${stat ? ', ' + stat.trim() : ''}`);
+    if (n) console.log(ahead);
+    if (!n) {
+      console.log('nothing to push');
+      process.exit(0);
+    }
+    if (dry) {
+      console.log('(dry run, nothing pushed)');
+      process.exit(0);
+    }
+    const res = spawnSync(
+      'git',
+      ['-C', REPO, '-c', `http.proxy=${proxy}`, '-c', `https.proxy=${proxy}`, 'push', 'origin', 'main'],
+      { stdio: 'inherit' },
+    );
+    process.exit(res.status ?? 1);
   },
   // Mechanical repairs only. Anything that needs a decision stays a failure for a human to read.
   fix: () => {
