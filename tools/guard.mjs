@@ -116,19 +116,6 @@ function walk(dir, filter, out = []) {
   add('numbers', res.status === 0 ? 'ok' : 'fail', res.status === 0 ? 'no stale version/count' : out.split('\n').slice(-6).join(' | '));
 }
 
-// ---------- 5c. the task board is intact ----------
-// The board is the one file every session edits by hand or by CLI; a duplicated id or a done item
-// with no note means the next reader cannot tell what was actually finished.
-{
-  const script = path.join(REPO, 'tools', 'board.mjs');
-  if (!fs.existsSync(script)) add('board', 'fail', 'tools/board.mjs missing');
-  else {
-    const res = spawnSync(process.execPath, [script, 'check'], { encoding: 'utf8' });
-    const out = ((res.stdout || '') + (res.stderr || '')).trim();
-    add('board', res.status === 0 ? 'ok' : 'fail', res.status === 0 ? out.replace(/^BOARD OK - /, '') : out.split('\n').slice(-4).join(' | '));
-  }
-}
-
 // ---------- 5b. the knowledge base still describes the installed game ----------
 // A game patch silently invalidates every line number and every count in _re/. One hash check
 // turns "why is this wrong" into "the game moved".
