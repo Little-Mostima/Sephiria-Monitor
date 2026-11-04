@@ -235,7 +235,7 @@ namespace SephiriaMonitor
             var emitters = new JArray();
             try
             {
-                foreach (var e in UnityEngine.Object.FindObjectsOfType<StudioEventEmitter>().Take(limit))
+                foreach (var e in UnityEngine.Object.FindObjectsByType<StudioEventEmitter>(UnityEngine.FindObjectsSortMode.None).Take(limit))
                 {
                     if (e == null) continue;
                     emitters.Add(new JObject
@@ -272,7 +272,7 @@ namespace SephiriaMonitor
             var list = new JArray();
             try
             {
-                var all = UnityEngine.Object.FindObjectsOfType<MiniscriptBehaviour>();
+                var all = UnityEngine.Object.FindObjectsByType<MiniscriptBehaviour>(UnityEngine.FindObjectsSortMode.None);
                 result["count"] = all.Length;
                 foreach (var b in all.Take(limit))
                 {
@@ -299,7 +299,7 @@ namespace SephiriaMonitor
             var inv = new JArray();
             try
             {
-                foreach (var s in UnityEngine.Object.FindObjectsOfType<InventoryShop>().Take(limit))
+                foreach (var s in UnityEngine.Object.FindObjectsByType<InventoryShop>(UnityEngine.FindObjectsSortMode.None).Take(limit))
                 {
                     if (s == null) continue;
                     inv.Add(new JObject
@@ -318,7 +318,7 @@ namespace SephiriaMonitor
             var exp = new JArray();
             try
             {
-                foreach (var s in UnityEngine.Object.FindObjectsOfType<ExpShop>().Take(limit))
+                foreach (var s in UnityEngine.Object.FindObjectsByType<ExpShop>(UnityEngine.FindObjectsSortMode.None).Take(limit))
                 {
                     if (s == null) continue;
                     exp.Add(new JObject

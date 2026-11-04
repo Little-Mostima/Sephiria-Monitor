@@ -9,9 +9,10 @@
 // Exit code 1 when any guard fails. Warnings do not fail.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
-import { REPO, DOCS, PORT, PYTHON } from './config.mjs';
+import { REPO, DOCS, PORT, PYTHON, GAME } from './config.mjs';
+import { scan as scanEncoding } from './encoding.mjs';
 import { killGameAndWait } from './runner/lib.mjs';
 
 const asJson = process.argv.includes('--json');
@@ -132,22 +133,58 @@ function walk(dir, filter, out = []) {
 // ---------- 6. every script still parses ----------
 {
   const mjs = walk(path.join(REPO, 'tools'), (p) => p.endsWith('.mjs'));
-  const bad = [];
-  for (const f of mjs) {
-    const res = spawnSync(process.execPath, ['--check', f], { encoding: 'utf8' });
-    if (res.status !== 0) bad.push(rel(f));
-  }
+  // 并行跑 node --check：23 个文件串行 spawn 要 1.2 s，并行约 0.3 s
+  const checkOne = (f) => new Promise((resolve) => {
+    const c = spawn(process.execPath, ['--check', f], { stdio: 'ignore' });
+    c.on('exit', (code) => resolve(code === 0 ? null : rel(f)));
+    c.on('error', () => resolve(rel(f)));
+  });
+  const bad = (await Promise.all(mjs.map(checkOne))).filter(Boolean);
   const py = walk(path.join(DOCS, 'index'), (p) => p.endsWith('.py'));
-  const python = PYTHON;
+  // py_compile 一次收全部文件：20 次 spawn 变 1 次
   const pyBad = [];
-  for (const f of py) {
-    const res = spawnSync(python, ['-m', 'py_compile', f], { encoding: 'utf8' });
-    if (res.status !== 0) pyBad.push(rel(f));
+  if (py.length) {
+    const res = spawnSync(PYTHON, ['-m', 'py_compile', ...py], { encoding: 'utf8' });
+    if (res.status !== 0) {
+      const msg = ((res.stderr || '') + (res.stdout || '')).trim().split(/\r?\n/).filter(Boolean).slice(-2).join(' | ');
+      pyBad.push(msg || 'py_compile failed');
+    }
   }
   const detail = [];
   if (bad.length) detail.push('mjs: ' + bad.join(', '));
   if (pyBad.length) detail.push('py: ' + pyBad.join(', '));
   add('syntax', detail.length ? 'fail' : 'ok', detail.length ? detail.join('; ') : mjs.length + ' mjs + ' + py.length + ' py parse');
+}
+
+// ---------- 6b. every text file is UTF-8 without BOM ----------
+// A GBK or BOM file makes read/grep/JSON.parse/PowerShell disagree about the same bytes; the
+// disagreement costs a re-read and a wrong guess, and the wrong guess gets written back.
+{
+  const { files, problems } = scanEncoding();
+  const hard = problems.filter((p) => p.kind !== 'truncated');
+  const soft = problems.filter((p) => p.kind === 'truncated');
+  if (hard.length) {
+    add('encoding', 'fail', brief(hard.map((p) => rel(p.file) + ' (' + p.kind + ')'), 5) + ' - run node tools/encoding.mjs --fix');
+  } else if (soft.length) {
+    add('encoding', 'warn', brief(soft.map((p) => rel(p.file)), 5) + ' - truncated char(s), needs a human');
+  } else {
+    add('encoding', 'ok', files.length + ' text files, UTF-8 no BOM');
+  }
+}
+
+// ---------- 6c. the plugin still compiles, warnings are errors ----------
+// The plugin build was never part of any gate, so a broken build or a new deprecation warning
+// only showed up when the game was launched - the slowest possible place to find it.
+{
+  if (!fs.existsSync(path.join(GAME, 'Sephiria_Data', 'Managed', 'Assembly-CSharp.dll'))) {
+    add('plugin', 'warn', 'game assemblies not found (set SEPHIRIA_GAME_DIR)');
+  } else {
+    const t0 = Date.now();
+    const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'plugin.mjs'), '--check'], { encoding: 'utf8' });
+    const ms = Date.now() - t0;
+    if (res.status === 0) add('plugin', 'ok', 'Release build clean in ' + ms + ' ms');
+    else add('plugin', 'fail', ((res.stderr || '') + (res.stdout || '')).trim().split(/\r?\n/).slice(-4).join(' | '));
+  }
 }
 
 // ---------- 7. the enter-world contract (opt-in: needs the game) ----------

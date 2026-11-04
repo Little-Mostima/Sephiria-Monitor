@@ -62,9 +62,11 @@ tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则
 tools/build-mod.mjs       node build-mod.mjs <mod> [--deploy] → 编译 + 复制 metadata + 可选装进 AddOns
 tools/dev.mjs             node dev.mjs <mod> [--apply] → 内循环：数据改动热重载，C# 改动才重启
 tools/doccheck.mjs        node doccheck.mjs → 文档里的版本号/篇数/套件数是否与真值一致
-tools/guard.mjs           node guard.mjs [--world] → 结构守护：死路径 / 死引用 / 断链 / hooks 双份 / 文档数字 / 语法；--world 加进档契约（hostCalls=1）
+tools/guard.mjs           node guard.mjs [--world] → 结构守护：死路径 / 死引用 / 断链 / hooks 双份 / 文档数字 / 编码 / 插件编译 / 语法；--world 加进档契约（hostCalls=1）
+tools/plugin.mjs          node plugin.mjs [--no-deploy] → 编译插件（警告即错误）并部署 dll + hooks.json 到游戏
+tools/encoding.mjs        node encoding.mjs [--fix|--read <file>] → 文本编码：UTF-8 无 BOM；--read 自动判编码打印
 tools/compat.mjs          node compat.mjs --static|--pairs|--all → 模组间冲突扫描与共存回归
-tools/do.mjs              node do.mjs build|test|fast|pack|release|compat|docs|guard|doctor|new|clean
+tools/do.mjs              node do.mjs build|test|fast|pack|release|compat|docs|guard|plugin|encoding|doctor|new|clean
 tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
 ```
 
@@ -309,7 +311,7 @@ dotnet build SephiriaMonitor -c Release
 
 - 一个改动一个 commit；标题中文一句话，不加 emoji、不写 "update"。
 - 不提交产物：`dist/`、`work/`、`*.dll`、`*.zip`、`*.sav`、`BepInEx/`、`AddOns/`、`WorkshopLocal/`（`.gitignore` 白名单，`git add -f` 也不行）。
-- 提交前跑 `node tools/do.mjs guard`（静态 6 项全绿才提交；改了进档链路再加 `--world`）。
+- 提交前跑 `node tools/do.mjs guard`（静态 9 项全绿才提交；改了进档链路再加 `--world`）。
 - 不 `git add .`，只 add 自己改的路径。
 - 提交身份：`Little-Mostima <350866909+Little-Mostima@users.noreply.github.com>`。
 

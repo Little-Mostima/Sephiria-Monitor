@@ -9,7 +9,10 @@
 //   node tools/do.mjs release <mod> [--stage]  release checklist (+ stage into WorkshopLocal)
 //   node tools/do.mjs compat [--static|--pairs|--all]   mod-to-mod compatibility
 //   node tools/do.mjs docs                     doc rot check
-//   node tools/do.mjs guard [--world]          structural guards (dead paths, links, hooks, syntax; --world adds the enter-world contract)
+//   node tools/do.mjs guard [--world]          structural guards (dead paths, links, hooks, encoding, plugin build, syntax; --world adds the enter-world contract)
+//   node tools/do.mjs plugin [--no-deploy]     build the monitor plugin (warnings are errors) and deploy it
+//   node tools/do.mjs encoding [--fix]         check (or repair) text file encodings: UTF-8, no BOM
+//   node tools/do.mjs q <api|sig|grep|item|hook|doc|table|src|cat|live> ...   offline index query (q.py, UTF-8 output)
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
 //   node tools/do.mjs qc [<mod>|--all]         content quality checks
@@ -25,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { REPO, WORK, DOCS, killGameAndWait } from './runner/lib.mjs';
+import { PYTHON } from './config.mjs';
 import { discoverSuites, describeTier, DEFAULT_TIER } from './suites.mjs';
 
 const [, , task, ...rest] = process.argv;
@@ -54,6 +58,17 @@ const TASKS = {
   compat: (a) => run('compat.mjs', a),
   docs: (a) => run('doccheck.mjs', a),
   guard: (a) => run('guard.mjs', a),
+  plugin: (a) => run('plugin.mjs', a),
+  encoding: (a) => run('encoding.mjs', a),
+  // q.py prints Chinese; without PYTHONIOENCODING the pipe decodes as GBK and every answer
+  // arrives as mojibake. One entry point, correct encoding, no per-call incantation.
+  q: (a) => {
+    const res = spawnSync(PYTHON, [path.join(DOCS, 'index', 'q.py'), ...a], {
+      stdio: 'inherit',
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+    });
+    process.exit(res.status ?? 1);
+  },
   doctor: (a) => run('doctor.mjs', a),
   new: (a) => run('new-mod.mjs', a),
   qc: (a) => run('qc-check.mjs', a),
