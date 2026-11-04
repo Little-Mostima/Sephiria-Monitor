@@ -40,32 +40,26 @@ namespace SephiriaMonitor
                 }
             }
 
-            List<UnityEngine.Object> units = StateApi.Instances(typeof(UnitAvatar));
+            // Same scan /targets uses; this list stays compact because /player is polled often.
+            List<WorldOps.UnitRow> units = WorldOps.ScanUnits(player);
             List<object> near = new List<object>();
             int hostile = 0;
-            string playerFaction = player != null ? StateApi.FactionOf(player) : "";
-            for (int i = 0; i < units.Count; i++)
+            foreach (WorldOps.UnitRow row in units)
             {
-                UnitAvatar u = units[i] as UnitAvatar;
-                if (u == null || u == player)
+                UnitAvatar u = row.unit;
+                if (u == player || !row.alive)
                 {
                     continue;
                 }
-                float dist = player != null ? Vector3.Distance(player.transform.position, u.transform.position) : 0f;
-                if (u.hp <= 0f)
-                {
-                    continue;
-                }
-                bool isHostile = StateApi.IsHostileToPlayer(u, playerFaction);
-                if (dist <= 30f && near.Count < 24)
-                {
-                    near.Add(Json.Obj().Add("n", u.name).Add("t", u.GetType().Name).Add("hp", Math.Round(u.hp, 1))
-                        .Add("maxHp", Math.Round(u.MaxHp, 1)).Add("d", Math.Round(dist, 1)).Add("pos", StateApi.Vec(u.transform.position))
-                        .Add("faction", StateApi.FactionOf(u)).Add("hostile", isHostile));
-                }
-                if (isHostile)
+                if (row.hostile)
                 {
                     hostile++;
+                }
+                if (row.distance <= 30f && near.Count < 24)
+                {
+                    near.Add(Json.Obj().Add("n", u.name).Add("t", u.GetType().Name).Add("hp", Math.Round(u.hp, 1))
+                        .Add("maxHp", Math.Round(u.MaxHp, 1)).Add("d", Math.Round(row.distance, 1)).Add("pos", StateApi.Vec(u.transform.position))
+                        .Add("faction", StateApi.FactionOf(u)).Add("hostile", row.hostile));
                 }
             }
             d["unitCount"] = units.Count;

@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 
-import { REPO, DOCS, PORT, PYTHON, GAME } from './config.mjs';
+import { REPO, ROOT, DOCS, PORT, PYTHON, GAME } from './config.mjs';
 import { scan as scanEncoding } from './encoding.mjs';
 import { killGameAndWait } from './runner/lib.mjs';
 
@@ -167,6 +167,27 @@ function walk(dir, filter, out = []) {
   const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'doccheck.mjs')], { encoding: 'utf8' });
   const out = ((res.stdout || '') + (res.stderr || '')).trim();
   add('numbers', res.status === 0 ? 'ok' : 'fail', res.status === 0 ? 'no stale version/count' : out.split('\n').slice(-6).join(' | '));
+}
+
+// ---------- 5a. generated indexes are fresh ----------
+// plugin-routes.tsv and suites.tsv are derived from source. Adding a route and not rebuilding the
+// index leaves the docs describing a bridge that no longer exists - and doccheck cannot see it,
+// because it compares docs against the index, not the index against the code.
+{
+  const script = path.join(DOCS, 'index', 'build-plugin-index.py');
+  const outs = [path.join(DOCS, 'index', 'plugin-routes.tsv'), path.join(DOCS, 'MODDEV', 'testing', 'suites.tsv')];
+  if (!fs.existsSync(script)) add('indexes', 'warn', 'build-plugin-index.py missing');
+  else {
+    const res = spawnSync(PYTHON, [script], { encoding: 'utf8' });
+    if (res.status !== 0) add('indexes', 'fail', 'build-plugin-index.py failed: ' + ((res.stderr || '').trim().split('\n').pop() || ''));
+    else {
+      // Compare against the index, not HEAD: during a commit the regenerated files are staged but
+      // not yet in HEAD, and that is exactly the state we want to accept.
+      const diff = spawnSync('git', ['-C', ROOT, 'diff', '--quiet', '--', ...outs], { encoding: 'utf8' });
+      add('indexes', diff.status === 0 ? 'ok' : 'fail',
+        diff.status === 0 ? 'route/suite indexes match source' : 'generated index out of date - run _re/index/build-plugin-index.py and stage it');
+    }
+  }
 }
 
 // ---------- 5b. the knowledge base still describes the installed game ----------

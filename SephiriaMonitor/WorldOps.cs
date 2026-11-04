@@ -94,6 +94,45 @@ namespace SephiriaMonitor
         /// with its floor. /spots only lists interactables, and the training dummy is a UnitAvatar - so
         /// finding something to hit used to mean guessing names and teleporting until something bled.
         /// </summary>
+        /// <summary>
+        /// One unit as both callers need it: who it is, how far, whether it is alive and hostile, and
+        /// which floor it stands on. /targets and /player each walked the scene and computed these
+        /// separately, so the same unit had two field vocabularies and two ideas of "nearby".
+        /// </summary>
+        public struct UnitRow
+        {
+            public UnitAvatar unit;
+            public float distance;
+            public bool alive;
+            public bool hostile;
+            public string floor;
+        }
+
+        /// <summary>Every UnitAvatar in the scene, nearest first. Callers filter; nothing is dropped here.</summary>
+        public static List<UnitRow> ScanUnits(PlayerAvatar player)
+        {
+            Vector3 p = player != null ? player.transform.position : Vector3.zero;
+            string playerFaction = player != null ? StateApi.FactionOf(player) : "";
+            UnitAvatar[] units = UnityEngine.Object.FindObjectsByType<UnitAvatar>(FindObjectsSortMode.None);
+            List<UnitRow> rows = new List<UnitRow>(units.Length);
+            foreach (UnitAvatar u in units)
+            {
+                if (u == null)
+                {
+                    continue;
+                }
+                UnitRow row = new UnitRow();
+                row.unit = u;
+                row.distance = player != null ? Vector3.Distance(u.transform.position, p) : 0f;
+                row.alive = u.hp > 0f;
+                row.hostile = u != player && StateApi.IsHostileToPlayer(u, playerFaction);
+                row.floor = FloorOf(u.transform);
+                rows.Add(row);
+            }
+            rows.Sort(delegate (UnitRow a, UnitRow b) { return a.distance.CompareTo(b.distance); });
+            return rows;
+        }
+
         public static string Targets(string q, float radius, bool all, int max)
         {
             JsonObject root = Json.Obj();
@@ -103,29 +142,21 @@ namespace SephiriaMonitor
                 root["error"] = "no local player";
                 return Json.Write(root);
             }
-            Vector3 p = player.transform.position;
             string current = CurrentFloorName();
-            string playerFaction = StateApi.FactionOf(player);
-            UnitAvatar[] units = UnityEngine.Object.FindObjectsByType<UnitAvatar>(FindObjectsSortMode.None);
-            Array.Sort(units, delegate (UnitAvatar a, UnitAvatar b)
-            {
-                return Vector3.Distance(a.transform.position, p).CompareTo(Vector3.Distance(b.transform.position, p));
-            });
             List<object> list = new List<object>();
             int total = 0;
-            foreach (UnitAvatar u in units)
+            foreach (UnitRow row in ScanUnits(player))
             {
-                if (u == null || u == player || u.hp <= 0f)
+                UnitAvatar u = row.unit;
+                if (u == player || !row.alive)
                 {
                     continue;
                 }
-                string floor = FloorOf(u.transform);
-                if (!all && !string.IsNullOrEmpty(current) && floor != null && floor != current)
+                if (!all && !string.IsNullOrEmpty(current) && row.floor != null && row.floor != current)
                 {
                     continue;
                 }
-                float d = Vector3.Distance(u.transform.position, p);
-                if (radius > 0f && d > radius)
+                if (radius > 0f && row.distance > radius)
                 {
                     continue;
                 }
@@ -146,11 +177,11 @@ namespace SephiriaMonitor
                 o["type"] = u.GetType().Name;
                 o["hp"] = R(u.hp);
                 o["maxHp"] = R(u.MaxHp);
-                o["floor"] = floor;
+                o["floor"] = row.floor;
                 o["pos"] = Pair(u.transform.position.x, u.transform.position.y);
-                o["distance"] = R(d);
+                o["distance"] = R(row.distance);
                 o["faction"] = StateApi.FactionOf(u);
-                o["hostile"] = StateApi.IsHostileToPlayer(u, playerFaction);
+                o["hostile"] = row.hostile;
                 list.Add(o);
             }
             root["floor"] = current;
