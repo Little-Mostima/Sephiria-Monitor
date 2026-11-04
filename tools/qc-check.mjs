@@ -49,17 +49,30 @@ const ensure = (name) => {
   return mods.get(name);
 };
 
-const dirs = all
-  ? listDirs(WORK).filter((d) => fs.existsSync(path.join(WORK, d, 'metadata.json')))
-  : targets.map((t) => t.replace(/^work[\\/]/, ''));
+// A target is either a name under work/ or any path (preflight passes work/<mod> too). Cross-mod id
+// collisions need every sibling that carries a metadata.json, otherwise "one mod at a time" silently
+// loses the only check that looks outside the folder.
+const peers = listDirs(WORK)
+  .filter((d) => fs.existsSync(path.join(WORK, d, 'metadata.json')))
+  .map((d) => ({ name: d, dir: path.join(WORK, d) }));
+const requested = all
+  ? peers
+  : targets.map((t) => {
+      // A bare name means work/<name> (the old contract); a path is taken as given.
+      const abs = path.isAbsolute(t) ? t : path.resolve(REPO, t);
+      const dir = fs.existsSync(abs) ? abs : path.join(WORK, t);
+      return { name: path.basename(dir), dir };
+    });
+const reportNames = new Set(requested.map((x) => x.name));
+const scan = [...peers];
+for (const x of requested) if (!scan.some((y) => y.dir === x.dir)) scan.push(x);
 
-if (!dirs.length) {
+if (!requested.length) {
   console.error('usage: node tools/qc-check.mjs <mod> | --all [--json]');
   process.exit(2);
 }
 
-for (const name of dirs) {
-  const dir = path.join(WORK, name);
+for (const { name, dir } of scan) {
   const r = ensure(name);
   const err = (m) => r.errors.push(m);
   const warn = (m) => r.warnings.push(m);
@@ -67,19 +80,23 @@ for (const name of dirs) {
   let meta = null;
   try { meta = readJson(path.join(dir, 'metadata.json')); } catch (e) { err('metadata.json unreadable: ' + e.message); }
 
+  // A content-only package (translations / data, no code) legitimately has no csproj and no dllFile.
+  const csprojs = listFiles(path.join(dir, 'src'), '.csproj');
+  const contentOnly = csprojs.length === 0;
+  const keysNeeded = contentOnly ? ['modName', 'modVersion', 'modAuthor'] : REQUIRED_KEYS;
+
   if (meta) {
     const keys = Object.keys(meta);
-    const missing = REQUIRED_KEYS.filter((k) => !(k in meta));
-    const extra = keys.filter((k) => !REQUIRED_KEYS.includes(k));
+    const missing = keysNeeded.filter((k) => !(k in meta));
+    const extra = keys.filter((k) => !keysNeeded.includes(k));
     if (missing.length) err('metadata.json missing key(s): ' + missing.join(', '));
     if (extra.length) err('metadata.json extra key(s): ' + extra.join(', '));
-    for (const k of REQUIRED_KEYS) {
+    for (const k of keysNeeded) {
       if (k in meta && (typeof meta[k] !== 'string' || !meta[k].trim())) err(`metadata.${k} must be a non-empty string`);
     }
   }
 
-  const csprojs = listFiles(path.join(dir, 'src'), '.csproj');
-  if (csprojs.length !== 1) err(`expected exactly one .csproj in src/, found ${csprojs.length}`);
+  if (!contentOnly && csprojs.length !== 1) err(`expected exactly one .csproj in src/, found ${csprojs.length}`);
   let csproj = '';
   if (csprojs.length === 1) {
     csproj = read(csprojs[0]);
@@ -218,6 +235,7 @@ const rows = [];
 let errors = 0;
 let warnings = 0;
 for (const [name, r] of mods) {
+  if (!reportNames.has(name)) continue;
   errors += r.errors.length;
   warnings += r.warnings.length;
   rows.push({ name, errors: r.errors, warnings: r.warnings, ids: r.ids.size });

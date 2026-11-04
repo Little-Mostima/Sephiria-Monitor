@@ -25,7 +25,6 @@
 //   node tools/do.mjs review [--json]          review status of the working tree
 //   node tools/do.mjs dev [--watch]            dev loop (build + deploy on change)
 //   node tools/do.mjs world [--slot N] [--fresh] [--visible]   launch and enter the world (quick channel)
-//   node tools/do.mjs watch [--tier smoke|fast|full]  re-run checks whenever a mod or doc changes
 //   node tools/do.mjs session [suite...] [--tier fast|full]  one cold start, then run suites with --reuse
 //   node tools/do.mjs ship <mod> [--stage]     build -> full preflight -> pack -> release (one publish path)
 //   node tools/do.mjs clean                    drop test runs / snapshots / build leftovers
@@ -69,10 +68,10 @@ const TASKS = {
   hooks: (a) => run('install-hooks.mjs', a),
   // The commit gate: everything that must hold before a commit lands. Same code the pre-commit
   // hook runs, so "it passed locally" and "it passed the hook" cannot diverge.
+  // guard already runs doccheck (its "numbers" item), so the gate is guard alone - one run, one verdict.
   gate: (a) => {
     const g = spawnSync(process.execPath, [path.join(REPO, 'tools', 'guard.mjs'), ...a], { stdio: 'inherit' });
-    const d = spawnSync(process.execPath, [path.join(REPO, 'tools', 'doccheck.mjs')], { stdio: 'inherit' });
-    const ok = (g.status ?? 1) === 0 && (d.status ?? 1) === 0;
+    const ok = (g.status ?? 1) === 0;
     console.log(ok ? '\nGATE OK' : '\nGATE FAILED');
     process.exit(ok ? 0 : 1);
   },
@@ -97,8 +96,7 @@ const TASKS = {
   fix: () => {
     const enc = spawnSync(process.execPath, [path.join(REPO, 'tools', 'encoding.mjs'), '--fix'], { stdio: 'inherit' });
     const cat = spawnSync(PYTHON, [path.join(DOCS, 'index', 'build-catalog.py')], { stdio: 'inherit' });
-    const lnk = spawnSync(PYTHON, [path.join(DOCS, 'index', 'check-links.py')], { stdio: 'inherit' });
-    const ok = [enc, cat, lnk].every((r) => (r.status ?? 1) === 0);
+    const ok = [enc, cat].every((r) => (r.status ?? 1) === 0);
     console.log(ok ? '\nFIX OK' : '\nFIX: something still needs a human');
     process.exit(ok ? 0 : 1);
   },
@@ -165,49 +163,6 @@ const TASKS = {
       if ((res.status ?? 1) !== 0) { console.error(`SHIP FAILED at ${script}`); process.exit(res.status ?? 1); }
     }
     console.log(`\nSHIP OK  ${mod}`);
-  },
-
-  watch: (a) => {
-    // Default 'fast', not 'smoke': smoke means "static checks only", so the old default made the
-    // watcher report green while never running a single suite.
-    const tier = flag(a, '--tier', 'fast');
-    const roots = [];
-    for (const name of fs.readdirSync(WORK)) {
-      const dir = path.join(WORK, name);
-      if (!fs.existsSync(path.join(dir, 'metadata.json'))) continue;
-      for (const sub of ['src', 'Localization', 'data', 'costume']) {
-        const p = path.join(dir, sub);
-        if (fs.existsSync(p)) roots.push(p);
-      }
-    }
-    if (fs.existsSync(DOCS)) roots.push(DOCS);
-    const stamp = () => {
-      let n = 0;
-      const walk = (p) => {
-        for (const e of fs.readdirSync(p, { withFileTypes: true })) {
-          const q = path.join(p, e.name);
-          if (e.isDirectory()) { if (e.name !== 'obj' && e.name !== 'bin' && e.name !== 'node_modules') walk(q); }
-          else { const st = fs.statSync(q); n += st.size + Math.floor(st.mtimeMs / 1000); }
-        }
-      };
-      for (const r of roots) walk(r);
-      return n;
-    };
-    console.log(`watching ${roots.length} roots - ${describeTier(tier)} - Ctrl+C to stop`);
-    let last = stamp();
-    let running = false;
-    setInterval(() => {
-      if (running) return;
-      const now = stamp();
-      if (now === last) return;
-      last = now;
-      running = true;
-      console.log(`\n[${new Date().toLocaleTimeString()}] change detected -> preflight --all --tier ${tier}`);
-      const res = spawnSync(process.execPath, [path.join(REPO, 'tools', 'preflight.mjs'), '--all', '--tier', tier], { stdio: 'inherit' });
-      console.log(res.status === 0 ? 'WATCH OK' : 'WATCH FAILED');
-      running = false;
-      last = stamp();
-    }, 1500);
   },
 
   clean: () => {

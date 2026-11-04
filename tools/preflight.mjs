@@ -64,7 +64,8 @@ const skip = (name, detail) => {
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const exists = (p) => fs.existsSync(p);
 
-// 1. static checks
+// 1. static checks - one implementation only: qc-check.mjs. This stage used to carry its own copy of
+// the metadata / id rules, which is exactly how "do test passes but do qc fails" became possible.
 let contentOnly = false;
 {
   const problems = [];
@@ -76,40 +77,14 @@ let contentOnly = false;
   for (const f of contentOnly ? ['metadata.json'] : ['metadata.json', 'mod.json']) {
     if (!exists(path.join(modDir, f))) problems.push('missing ' + f);
   }
-  if (!contentOnly && csprojs.length !== 1) problems.push(`expected exactly one .csproj in src/, found ${csprojs.length}`);
-  let meta = null;
-  try { meta = readJson(path.join(modDir, 'metadata.json')); } catch { problems.push('metadata.json is not valid JSON'); }
-  if (meta) {
-    const required = contentOnly ? ['modName', 'modVersion', 'modAuthor'] : ['modName', 'modVersion', 'modAuthor', 'dllFile', 'entryClass'];
-    for (const k of required) if (!meta[k]) problems.push('metadata.json missing ' + k);
-    if (meta.entryClass && !/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(meta.entryClass)) problems.push('entryClass does not look like a type name');
-    if (!/^\d+\.\d+\.\d+$/.test(meta.modVersion || '')) problems.push('modVersion must be semver (x.y.z)');
-  }
-  // content id guard: two installed content mods must not register the same numeric id
-  // (learned the hard way - a copy-pasted scaffold clobbers the other mod's entries)
-  {
-    const ids = new Map();
-    const collect = (root, self) => {
-      const src = path.join(root, 'src');
-      if (!exists(src)) return;
-      for (const f of fs.readdirSync(src)) {
-        if (!f.endsWith('.cs')) continue;
-        const text = fs.readFileSync(path.join(src, f), 'utf8');
-        for (const m of text.matchAll(/\b(9\d{5})\b/g)) {
-          if (!ids.has(m[1])) ids.set(m[1], new Set());
-          ids.get(m[1]).add(self);
-        }
-      }
-    };
-    const selfName = path.basename(modDir);
-    collect(modDir, selfName);
-    const workRoot = path.dirname(path.resolve(modDir));
-    for (const d of fs.readdirSync(workRoot, { withFileTypes: true })) {
-      if (!d.isDirectory() || d.name.startsWith('_') || d.name === selfName) continue;
-      collect(path.join(workRoot, d.name), d.name);
-    }
-    for (const [id, owners] of ids) {
-      if (owners.size > 1) console.log(`warn  content id ${id} is also used by ${[...owners].filter((o) => o !== selfName).join(', ')} - the two mods will fight over the same entry`);
+
+  const qc = spawnSync(process.execPath, [path.join(REPO, 'tools', 'qc-check.mjs'), modDir, '--json'], { encoding: 'utf8' });
+  let parsed = null;
+  try { parsed = JSON.parse((qc.stdout || '').trim()); } catch { problems.push('qc-check.mjs did not return JSON' + (qc.stderr ? ': ' + qc.stderr.trim().split('\n').pop() : '')); }
+  if (parsed) {
+    for (const row of parsed.rows || []) {
+      for (const e of row.errors || []) problems.push(e);
+      for (const w of row.warnings || []) console.log(`warn  ${row.name}: ${w}`);
     }
   }
 
@@ -118,6 +93,7 @@ let contentOnly = false;
   record('static', problems.length === 0, problems.join('; ') || `${contentOnly ? 'content-only, ' : csprojs.length + ' csproj, '}${suites.length} suite(s)`);
   if (problems.length) finish();
 }
+
 
 // 1b. doc rot (only in --all mode: one check for the whole docs tree)
 if (args.includes('--all') && !skipTests) {
