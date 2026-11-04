@@ -89,6 +89,77 @@ namespace SephiriaMonitor
             return Json.Write(root);
         }
 
+        /// <summary>
+        /// Where can a swing land: every damageable unit (hp above zero, not the player), nearest first,
+        /// with its floor. /spots only lists interactables, and the training dummy is a UnitAvatar - so
+        /// finding something to hit used to mean guessing names and teleporting until something bled.
+        /// </summary>
+        public static string Targets(string q, float radius, bool all, int max)
+        {
+            JsonObject root = Json.Obj();
+            PlayerAvatar player = LocalPlayer();
+            if (player == null)
+            {
+                root["error"] = "no local player";
+                return Json.Write(root);
+            }
+            Vector3 p = player.transform.position;
+            string current = CurrentFloorName();
+            string playerFaction = StateApi.FactionOf(player);
+            UnitAvatar[] units = UnityEngine.Object.FindObjectsByType<UnitAvatar>(FindObjectsSortMode.None);
+            Array.Sort(units, delegate (UnitAvatar a, UnitAvatar b)
+            {
+                return Vector3.Distance(a.transform.position, p).CompareTo(Vector3.Distance(b.transform.position, p));
+            });
+            List<object> list = new List<object>();
+            int total = 0;
+            foreach (UnitAvatar u in units)
+            {
+                if (u == null || u == player || u.hp <= 0f)
+                {
+                    continue;
+                }
+                string floor = FloorOf(u.transform);
+                if (!all && !string.IsNullOrEmpty(current) && floor != null && floor != current)
+                {
+                    continue;
+                }
+                float d = Vector3.Distance(u.transform.position, p);
+                if (radius > 0f && d > radius)
+                {
+                    continue;
+                }
+                if (!string.IsNullOrEmpty(q)
+                    && u.name.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0
+                    && u.GetType().Name.IndexOf(q, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+                int idx = total++;
+                if (list.Count >= max)
+                {
+                    continue;
+                }
+                JsonObject o = Json.Obj();
+                o["index"] = idx;
+                o["name"] = u.name;
+                o["type"] = u.GetType().Name;
+                o["hp"] = R(u.hp);
+                o["maxHp"] = R(u.MaxHp);
+                o["floor"] = floor;
+                o["pos"] = Pair(u.transform.position.x, u.transform.position.y);
+                o["distance"] = R(d);
+                o["faction"] = StateApi.FactionOf(u);
+                o["hostile"] = StateApi.IsHostileToPlayer(u, playerFaction);
+                list.Add(o);
+            }
+            root["floor"] = current;
+            root["total"] = total;
+            root["shown"] = list.Count;
+            root["targets"] = list;
+            return Json.Write(root);
+        }
+
         public static string Use(string index, string name, string type, bool tp, float offsetX, float offsetY)
         {
             JsonObject root = Json.Obj();

@@ -512,6 +512,12 @@ namespace SephiriaMonitor
                         return WorldOps.Spots(Query(query, "type", ""), Query(query, "name", ""), Int(query, "max", 30),
                             Query(query, "all", "0") == "1", Num(query, "near", 0f));
                     }, 8000);
+                case "/targets":
+                    return MainThreadPump.Run(delegate
+                    {
+                        return WorldOps.Targets(Query(query, "q", ""), Num(query, "r", 200f), Query(query, "all", "0") == "1",
+                            Int(query, "max", 40));
+                    }, 8000);
                 case "/use":
                     return MainThreadPump.Run(delegate
                     {

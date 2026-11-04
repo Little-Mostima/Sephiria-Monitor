@@ -19,6 +19,7 @@
 //   node tools/do.mjs fix                      mechanical repairs (encoding --fix, catalog, links)
 //   node tools/do.mjs format [--fix]           C# formatting check (dotnet format is the definition)
 //   node tools/do.mjs hooks [--check]          install / verify the pre-commit gate in both repos
+//   node tools/do.mjs bench [--weapon N] [--hits N]   one-command damage bench (kills target hunting)
 //   node tools/do.mjs doctor                   environment check
 //   node tools/do.mjs new <name> [--kind content --base-id 930000]
 //   node tools/do.mjs qc [<mod>|--all]         content quality checks
@@ -142,6 +143,7 @@ const TASKS = {
     process.exit(res.status ?? 1);
   },
   doctor: (a) => run('doctor.mjs', a),
+  bench: (a) => run('bench.mjs', a),
   new: (a) => run('new-mod.mjs', a),
   qc: (a) => run('qc-check.mjs', a),
   selfcheck: (a) => run('selfcheck.mjs', a),

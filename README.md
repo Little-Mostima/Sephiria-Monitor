@@ -58,6 +58,7 @@ tools/preflight.mjs --all 同上，但遍历 work/ 下每个模组（发布前�
 tools/pack-workshop.mjs  node pack-workshop.mjs work/<mod> → dist/workshop/<modId>/ + zip
 tools/new-mod.mjs         node new-mod.mjs <Name> → work/<name>/ 骨架（可编译、可跑套件）
 tools/doctor.mjs          node doctor.mjs → 环境自检（游戏 / dotnet / 插件版本 / 桥 / 存档 / 模组通道）
+tools/bench.mjs           node bench.mjs [--weapon N --hits N] → 一条命令测伤害：进世界 → 跳训练层 → /targets 找靶子 → 贴上去挥 N 刀 → 按事件 id 汇总（写 work/_runs/bench-*）
 tools/check-package.mjs   node check-package.mjs <zip> → 按工坊真实规则校验产物（preflight 已内置）
 tools/build-mod.mjs       node build-mod.mjs <mod> [--deploy] → 编译 + 复制 metadata + 可选装进 AddOns
 tools/dev.mjs             node dev.mjs <mod> [--apply] → 内循环：数据改动热重载，C# 改动才重启
@@ -68,7 +69,7 @@ tools/encoding.mjs        node encoding.mjs [--fix|--read <file>] → 文本编�
 tools/format.mjs          node format.mjs [--fix] → C# 格式检查（dotnet format 是唯一标准）
 tools/install-hooks.mjs   node install-hooks.mjs [--check] → 给两个仓库装 pre-commit 门禁（core.hooksPath=.githooks）
 tools/compat.mjs          node compat.mjs --static|--pairs|--all → 模组间冲突扫描与共存回归
-tools/do.mjs              统一入口：build|test|fast|gate|commit|push|fix|format|hooks|pack|ship|release|compat|docs|guard|plugin|encoding|doctor|new|qc|selfcheck|session|world|clean
+tools/do.mjs              统一入口：build|test|fast|gate|commit|push|fix|format|hooks|pack|ship|release|compat|docs|guard|plugin|encoding|doctor|bench|new|qc|selfcheck|session|world|clean
 tools/review-status.mjs   node review-status.mjs → 读日志给出 item id / ticket / 审核状态（试发后不用开面板）
 ```
 
